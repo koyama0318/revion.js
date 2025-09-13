@@ -15,8 +15,8 @@ export function createCommandBus({
   middleware = []
 }: {
   deps: CommandHandlerDeps
-  aggregates: AnyAggregate[]
-  middleware: CommandHandlerMiddleware[]
+  aggregates?: AnyAggregate[]
+  middleware?: CommandHandlerMiddleware[]
 }): CommandHandler {
   const handlers = createCommandHandlers(deps, aggregates)
 

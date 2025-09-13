@@ -1,0 +1,19 @@
+import type { AggregateId } from '../../../../../src/types/core'
+
+export type CounterId = AggregateId<'counter'>
+
+export type CounterState = {
+  type: 'active'
+  id: CounterId
+  count: number
+}
+
+export type CounterCommand =
+  | { type: 'create'; id: CounterId; payload: { count: number } }
+  | { type: 'increment'; id: CounterId }
+  | { type: 'decrement'; id: CounterId }
+
+export type CounterEvent =
+  | { type: 'created'; id: CounterId; payload: { count: number } }
+  | { type: 'incremented'; id: CounterId }
+  | { type: 'decremented'; id: CounterId }
