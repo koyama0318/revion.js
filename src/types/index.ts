@@ -1,3 +1,6 @@
 export * from './core/aggregate-id'
+export * from './core/command'
+export * from './core/domain-event'
+export * from './core/state'
 export * from './utils/app-error'
 export * from './utils/result'
