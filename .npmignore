@@ -1,0 +1,22 @@
+.github/
+.vscode/
+.node-version
+.npmrc
+.env
+.DS_Store
+
+# dev only
+src/
+tests/
+*.ts
+*.map
+tsconfig.json
+
+# tools/config
+.eslintrc*
+.prettier*
+.biome*
+.claude/
+.cursor/
+.serena/
+.mcp.json

@@ -1,0 +1,43 @@
+{
+  "name": "revionjs-project",
+  "description": "TypeScript framework for CQRS/Event Sourcing with complete type safety, comprehensive testing utilities.",
+  "version": "0.0.0",
+  "license": "MIT",
+  "module": "index.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/koyama0318/revion.js.git"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json && bun build ./src/index.ts --outdir ./dist",
+    "test": "bun test ./tests",
+    "test:coverage": "bun test ./tests --coverage",
+    "lint": "biome check --write .",
+    "lint:check": "biome check .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.4",
+    "@types/bun": "latest",
+    "husky": "^9.1.7"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "immer": "^10.1.1",
+    "uuid": "^11.1.0"
+  }
+}
