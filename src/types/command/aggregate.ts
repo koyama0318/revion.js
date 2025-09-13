@@ -1,4 +1,4 @@
-import type { Command, DomainEvent, State } from '../index'
+import type { Command, DomainEvent, State } from '../core'
 import type { AcceptsCommandFn, AcceptsEventFn } from './accepts-fn'
 import type { EventDeciderFn } from './event-decider-fn'
 import type { ReducerFn } from './reducer-fn'

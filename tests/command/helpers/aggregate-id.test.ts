@@ -5,7 +5,7 @@ import {
   validateAggregateId,
   zeroId
 } from '../../../src/command/helpers/aggregate-id'
-import type { AggregateId } from '../../../src/types'
+import type { AggregateId } from '../../../src/types/core'
 
 describe('[command] aggregate id helper functions', () => {
   describe('id', () => {

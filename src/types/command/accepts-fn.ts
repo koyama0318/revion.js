@@ -1,4 +1,4 @@
-import type { Command, DomainEvent, State } from '..'
+import type { Command, DomainEvent, State } from '../core'
 
 export type ApplyEventType = 'create' | 'update'
 

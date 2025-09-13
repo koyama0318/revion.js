@@ -1,4 +1,4 @@
-import type { Command, DomainEvent, State } from '..'
+import type { Command, DomainEvent, State } from '../core'
 import type { DeciderMap, EventDeciderFn } from './event-decider-fn'
 
 export type EventDecider<

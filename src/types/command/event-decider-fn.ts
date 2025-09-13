@@ -1,4 +1,4 @@
-import type { Command, DomainEvent, State } from '..'
+import type { Command, DomainEvent, State } from '../core'
 
 export type EventDeciderContext = {
   readonly timestamp: Date
