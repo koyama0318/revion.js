@@ -1,4 +1,4 @@
-import type { AsyncResult, Err, Ok, Result } from '../types'
+import type { AsyncResult, Err, Ok, Result } from '../types/utils'
 
 export function ok<T>(value: T): Ok<T> {
   return { ok: true, value }

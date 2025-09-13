@@ -1,5 +1,6 @@
 import { v4 } from 'uuid'
-import type { AggregateId, AppError, Result } from '../../types'
+import type { AggregateId } from '../../types/core'
+import type { AppError, Result } from '../../types/utils'
 import { err, ok } from '../../utils/result'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

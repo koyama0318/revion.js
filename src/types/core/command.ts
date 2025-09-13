@@ -1,5 +1,5 @@
 import type { AppError } from '../utils/app-error'
-import type { Result } from '../utils/result'
+import type { AsyncResult } from '../utils/result'
 import type { AggregateId } from './aggregate-id'
 
 export type Command<T = unknown> = {
@@ -24,4 +24,4 @@ export type CommandResultPayload = {
   id: AggregateId
 }
 
-export type CommandResult = Result<CommandResultPayload, AppError>
+export type CommandResult = AsyncResult<CommandResultPayload, AppError>

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { Ok } from '../../src'
 import { err, ok, toAsyncResult, toResult } from '../../src'
+import type { Ok } from '../../src/types/utils'
 
 describe('[utils] result utility functions', () => {
   describe('ok', () => {

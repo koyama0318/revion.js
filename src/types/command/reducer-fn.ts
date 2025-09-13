@@ -1,4 +1,4 @@
-import type { DomainEvent, State } from '..'
+import type { DomainEvent, State } from '../core'
 
 export type ReducerContext = {
   readonly timestamp: Date
