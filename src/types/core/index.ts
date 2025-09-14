@@ -1,4 +1,5 @@
 export * from './aggregate-id'
 export * from './command'
 export * from './domain-event'
+export * from './read-model'
 export * from './state'
