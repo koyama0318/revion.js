@@ -1,4 +1,5 @@
 import type { AggregateId } from '../../../../../src/types/core'
+import type { AchievementReadModel, CounterReadModel } from '../../shared/readmodel'
 
 export type CounterId = AggregateId<'counter'>
 
@@ -17,3 +18,5 @@ export type CounterEvent =
   | { type: 'created'; id: CounterId; payload: { count: number } }
   | { type: 'incremented'; id: CounterId }
   | { type: 'decremented'; id: CounterId }
+
+export type CounterReadModels = CounterReadModel | AchievementReadModel
