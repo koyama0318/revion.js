@@ -4,7 +4,7 @@ export type EventDeciderContext = {
   readonly timestamp: Date
 }
 
-export type DeciderMap<S extends State, C extends Command> = {
+export type EventDeciderMap<S extends State, C extends Command> = {
   [K in C['type']]: S['type'][]
 }
 

@@ -4,7 +4,7 @@ import {
   createAcceptsCommand,
   createAcceptsEvent
 } from '../../../src/command/helpers/create-accepts'
-import type { DeciderMap, ReducerMap } from '../../../src/types/command'
+import type { EventDeciderMap, ReducerMap } from '../../../src/types/command'
 import type { AggregateId } from '../../../src/types/core'
 
 type TestState =
@@ -27,7 +27,7 @@ type TestEvent =
 describe('[command] create accepts function', () => {
   describe('createAcceptsCommandFn', () => {
     test('accepts all command and state combinations when empty map is provided', () => {
-      const emptyMap = {} as DeciderMap<TestState, TestCommand>
+      const emptyMap = {} as EventDeciderMap<TestState, TestCommand>
       const acceptsCommand = createAcceptsCommand(emptyMap)
 
       const id = zeroId('test')
@@ -46,7 +46,7 @@ describe('[command] create accepts function', () => {
     })
 
     test('accepts commands with empty array definition for create event type', () => {
-      const deciderMap: DeciderMap<TestState, TestCommand> = {
+      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [], // create command only allowed during initial creation (no existing state)
         update: ['active'], // update command only accepted in active state
         activate: ['initial'], // activate command only accepted in initial state
@@ -63,7 +63,7 @@ describe('[command] create accepts function', () => {
     })
 
     test('rejects commands with state array definition for create event type', () => {
-      const deciderMap: DeciderMap<TestState, TestCommand> = {
+      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
         activate: ['initial'],
@@ -80,7 +80,7 @@ describe('[command] create accepts function', () => {
     })
 
     test('accepts commands in allowed states for update event type', () => {
-      const deciderMap: DeciderMap<TestState, TestCommand> = {
+      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
         activate: ['initial'],
@@ -101,7 +101,7 @@ describe('[command] create accepts function', () => {
     })
 
     test('rejects commands in disallowed states for update event type', () => {
-      const deciderMap: DeciderMap<TestState, TestCommand> = {
+      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
         activate: ['initial'],
@@ -122,7 +122,7 @@ describe('[command] create accepts function', () => {
     })
 
     test('rejects commands not defined in map for all states and event types', () => {
-      const deciderMap: DeciderMap<TestState, TestCommand> = {
+      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
         activate: ['initial'],

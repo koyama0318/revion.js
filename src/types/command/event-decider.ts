@@ -1,11 +1,11 @@
 import type { Command, DomainEvent, State } from '../core'
-import type { DeciderMap, EventDeciderFn } from './event-decider-fn'
+import type { EventDeciderFn, EventDeciderMap } from './event-decider-fn'
 
 export type EventDecider<
   S extends State,
   C extends Command,
   E extends DomainEvent,
-  DM extends DeciderMap<S, C> = never
+  DM extends EventDeciderMap<S, C> = never
 > = [DM] extends [never]
   ? {
       [K in C['type']]: EventDeciderFn<S, Extract<C, { type: K }>, E>
