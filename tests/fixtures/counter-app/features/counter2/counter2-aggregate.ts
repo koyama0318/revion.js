@@ -2,9 +2,11 @@ import { createAggregate } from '../../../../../src/command/aggregate-builder'
 import type {
   EventDecider,
   EventDeciderMap,
+  EventDeciderPreparedMap,
   Reducer,
   ReducerMap
 } from '../../../../../src/types/command'
+import type { Repository } from '../../shared/dependency/repository'
 import type { CounterCommand, CounterEvent, CounterState } from './types'
 
 const deciderMap = {
@@ -13,8 +15,25 @@ const deciderMap = {
   decrement: ['active']
 } satisfies EventDeciderMap<CounterState, CounterCommand>
 
-const decider: EventDecider<CounterState, CounterCommand, CounterEvent> = {
-  create: ({ command }) => {
+const preparedMap = {
+  create: async ({ command, deps }) => {
+    return {
+      counter: await deps.counterRepository.getCounter(command.id.value)
+    }
+  }
+} satisfies EventDeciderPreparedMap<CounterCommand, Repository>
+
+const decider: EventDecider<
+  CounterState,
+  CounterCommand,
+  CounterEvent,
+  typeof deciderMap,
+  typeof preparedMap
+> = {
+  create: ({ command, prepared }) => {
+    if (prepared.counter) {
+      throw new Error('Counter already exists')
+    }
     return {
       type: 'created',
       id: command.id,
@@ -59,6 +78,6 @@ const reducer: Reducer<CounterState, CounterEvent, typeof reducerMap> = {
 
 export const counter2 = createAggregate<CounterState, CounterCommand, CounterEvent>()
   .type('counter')
-  .deciderWithMap(decider, deciderMap)
+  .deciderWithMap(decider, deciderMap, preparedMap)
   .reducerWithMap(reducer, reducerMap)
   .build()

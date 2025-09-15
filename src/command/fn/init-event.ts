@@ -19,7 +19,7 @@ type InitEventFn<S extends State, C extends Command, E extends DomainEvent> = (
 ) => Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>
 
 export function createInitEventFnFactory<S extends State, C extends Command, E extends DomainEvent>(
-  eventDecider: EventDeciderFn<S, C, E>,
+  eventDecider: EventDeciderFn<S, C, E, Record<string, unknown>>,
   reducer: ReducerFn<S, E>
 ): () => InitEventFn<S, C, E> {
   return () => {
@@ -36,7 +36,12 @@ export function createInitEventFnFactory<S extends State, C extends Command, E e
         timestamp: new Date()
       }
       const eventRes = toResult(() =>
-        eventDecider({ ctx: deciderCtx, state: provisionalState, command })
+        eventDecider({
+          ctx: deciderCtx,
+          state: provisionalState,
+          command,
+          prepared: {} as Record<string, unknown>
+        })
       )
       if (!eventRes.ok) {
         return err({

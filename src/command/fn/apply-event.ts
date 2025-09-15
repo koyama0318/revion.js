@@ -16,20 +16,31 @@ import { err, ok, toResult } from '../../utils/result'
 
 type ApplyEventFn<S extends State, C extends Command, E extends DomainEvent> = (
   state: ExtendedState<S>,
-  command: C
+  command: C,
+  prepared: Record<string, unknown> | null
 ) => Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>
 
 export function createApplyEventFnFactory<
   S extends State,
   C extends Command,
   E extends DomainEvent
->(eventDecider: EventDeciderFn<S, C, E>, reducer: ReducerFn<S, E>): () => ApplyEventFn<S, C, E> {
+>(
+  eventDecider: EventDeciderFn<S, C, E, Record<string, unknown>>,
+  reducer: ReducerFn<S, E>
+): () => ApplyEventFn<S, C, E> {
   return () => {
-    return (state: ExtendedState<S>, command: C) => {
+    return (state: ExtendedState<S>, command: C, prepared: Record<string, unknown> | null) => {
       const deciderCtx: EventDeciderContext = {
         timestamp: new Date()
       }
-      const eventRes = toResult(() => eventDecider({ ctx: deciderCtx, state, command }))
+      const eventRes = toResult(() => {
+        return eventDecider({
+          ctx: deciderCtx,
+          state,
+          command,
+          prepared: prepared ?? ({} as Record<string, unknown>)
+        })
+      })
       if (!eventRes.ok) {
         return err({
           code: 'EVENT_DECIDER_ERROR',

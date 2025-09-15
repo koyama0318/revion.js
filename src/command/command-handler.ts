@@ -56,7 +56,10 @@ function createCommandHandlerFactory<
         })
       }
 
-      const applied = await applyFn(replayed.value, command as C)
+      const prepared = await aggregate.prepareDeps(command as C, deps)
+      if (!prepared.ok) return prepared
+
+      const applied = await applyFn(replayed.value, command as C, prepared.value)
       if (!applied.ok) return applied
 
       const saved = await saveFn(applied.value.state, applied.value.event)

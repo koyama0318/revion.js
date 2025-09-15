@@ -4,11 +4,13 @@ import type {
   EventDecider,
   EventDeciderFn,
   EventDeciderMap,
+  EventDeciderPreparedMap,
   Reducer,
   ReducerFn,
   ReducerMap
 } from '../types/command'
 import type { Command, DomainEvent, State } from '../types/core'
+import { createPrepareDepsFnFactory } from './fn/prepare-deps'
 import { createAcceptsCommand, createAcceptsEvent } from './helpers/create-accepts'
 
 /**
@@ -16,8 +18,9 @@ import { createAcceptsCommand, createAcceptsEvent } from './helpers/create-accep
  */
 type BuilderValue<S extends State, C extends Command, E extends DomainEvent> = {
   type: S['id']['type']
-  decider: EventDecider<S, C, E> | EventDecider<S, C, E, EventDeciderMap<S, C>>
+  decider?: unknown
   deciderMap?: EventDeciderMap<S, C>
+  preparedMap?: EventDeciderPreparedMap<C, unknown>
   reducer: Reducer<S, E> | Reducer<S, E, ReducerMap<S, E>>
   reducerMap?: ReducerMap<S, E>
 }
@@ -49,10 +52,11 @@ export interface IAggregateBuilder<
     value: EventDecider<S, C, E>
   ): IAggregateBuilder<'hasDecider', S, C, E>
 
-  deciderWithMap(
+  deciderWithMap<DM extends EventDeciderMap<S, C>, PM extends EventDeciderPreparedMap<C, unknown>>(
     this: IAggregateBuilder<'hasType', S, C, E>,
-    value: EventDecider<S, C, E>,
-    transitionMap: EventDeciderMap<S, C>
+    value: EventDecider<S, C, E, DM, PM>,
+    deciderMap: DM,
+    preparedMap: PM
   ): IAggregateBuilder<'hasDecider', S, C, E>
 
   reducer(
@@ -63,7 +67,7 @@ export interface IAggregateBuilder<
   reducerWithMap(
     this: IAggregateBuilder<'hasDecider', S, C, E>,
     value: Reducer<S, E>,
-    transitionMap: ReducerMap<S, E>
+    deciderMap: ReducerMap<S, E>
   ): IAggregateBuilder<'complete', S, C, E>
 
   build(this: IAggregateBuilder<'complete', S, C, E>): Aggregate<S, C, E>
@@ -82,9 +86,9 @@ function isRequiredBuilderValue<S extends State, C extends Command, E extends Do
  * Helper to safely convert any decider to EventDeciderFn
  */
 function createEventDeciderFn<S extends State, C extends Command, E extends DomainEvent>(
-  decider: EventDecider<S, C, E> | EventDecider<S, C, E, EventDeciderMap<S, C>>
-): EventDeciderFn<S, C, E> {
-  return fromEventDecider(decider as EventDecider<S, C, E>)
+  decider: unknown
+): EventDeciderFn<S, C, E, Record<string, unknown>> {
+  return fromEventDecider(decider)
 }
 
 /**
@@ -100,15 +104,21 @@ function createReducerFn<S extends State, E extends DomainEvent>(
  * Converts EventDecider object to EventDeciderFn
  */
 export function fromEventDecider<S extends State, C extends Command, E extends DomainEvent>(
-  deciders: EventDecider<S, C, E>
-): EventDeciderFn<S, C, E> {
-  return ({ ctx, state, command }) => {
-    const decider = deciders[command.type as keyof typeof deciders]
+  deciders: unknown
+): EventDeciderFn<S, C, E, Record<string, unknown>> {
+  return ({ ctx, state, command, prepared }) => {
+    const decidersObj = deciders as Record<string, (...args: unknown[]) => unknown>
+    const decider = decidersObj[command.type as keyof typeof decidersObj]
     if (!decider) {
       throw new Error(`No decider found for type: ${String(command.type)}`)
     }
 
-    return decider({ ctx, state, command: command as Extract<C, { type: typeof command.type }> })
+    return decider({
+      ctx,
+      state,
+      command: command as Extract<C, { type: typeof command.type }>,
+      prepared
+    }) as E
   }
 }
 
@@ -177,14 +187,19 @@ export class AggregateBuilder<
     return this.withValue<'hasDecider', { decider: EventDecider<S, C, E> }>({ decider })
   }
 
-  deciderWithMap<DM extends EventDeciderMap<S, C>>(
+  deciderWithMap<DM extends EventDeciderMap<S, C>, PM extends EventDeciderPreparedMap<C, unknown>>(
     this: AggregateBuilder<'hasType', S, C, E>,
-    decider: EventDecider<S, C, E, DM>,
-    deciderMap: DM
+    decider: EventDecider<S, C, E, DM, PM>,
+    deciderMap: DM,
+    preparedMap: PM
   ): AggregateBuilder<'hasDecider', S, C, E> {
-    return this.withValue<'hasDecider', { decider: EventDecider<S, C, E, DM>; deciderMap: DM }>({
+    return this.withValue<
+      'hasDecider',
+      { decider: EventDecider<S, C, E, DM, PM>; deciderMap: DM; preparedMap: PM }
+    >({
       decider,
-      deciderMap
+      deciderMap,
+      preparedMap
     })
   }
 
@@ -224,10 +239,14 @@ export class AggregateBuilder<
     const reducerMap: ReducerMap<S, E> = this.value.reducerMap ?? ({} as ReducerMap<S, E>)
     const acceptsEvent = createAcceptsEvent<S, E>(reducerMap)
 
+    const preparedMap = this.value.preparedMap ?? ({} as EventDeciderPreparedMap<C, unknown>)
+    const prepareDeps = createPrepareDepsFnFactory<C, unknown>(preparedMap)
+
     return {
       type: this.value.type,
       acceptsCommand,
       acceptsEvent,
+      prepareDeps,
       decider: createEventDeciderFn(this.value.decider),
       reducer: createReducerFn(this.value.reducer)
     }
