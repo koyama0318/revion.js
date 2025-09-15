@@ -1,6 +1,6 @@
+import type { EventStore } from '../../types/adapter'
 import type { ReducerContext, ReducerFn } from '../../types/command'
 import type { AggregateId, DomainEvent, ExtendedState, Snapshot, State } from '../../types/core'
-import type { CommandHandlerDeps } from '../../types/framework/command-bus'
 import type { AppError, AsyncResult } from '../../types/utils'
 import { err, ok, toAsyncResult, toResult } from '../../utils/result'
 
@@ -8,18 +8,16 @@ export type ReplayEventFn<T extends string, S extends State> = (
   id: AggregateId<T>
 ) => AsyncResult<ExtendedState<S>, AppError>
 
-export function createReplayEventFnFactory<
-  S extends State,
-  E extends DomainEvent,
-  D extends CommandHandlerDeps
->(reducer: ReducerFn<S, E>): (deps: D) => ReplayEventFn<S['id']['type'], S> {
-  return (deps: D) => {
+export function createReplayEventFnFactory<S extends State, E extends DomainEvent>(
+  reducer: ReducerFn<S, E>
+): (eventStore: EventStore) => ReplayEventFn<S['id']['type'], S> {
+  return (eventStore: EventStore) => {
     return async (id: AggregateId<S['id']['type']>) => {
       let state: ExtendedState<S> | null = null
       let currentVersion = 0
 
       const snapshot = await toAsyncResult(() =>
-        deps.eventStore.getSnapshot(id as AggregateId<S['id']['type']>)
+        eventStore.getSnapshot(id as AggregateId<S['id']['type']>)
       )
       if (!snapshot.ok) {
         return err({
@@ -36,7 +34,7 @@ export function createReplayEventFnFactory<
       }
 
       const events = await toAsyncResult(() =>
-        deps.eventStore.getEvents<E>(id as AggregateId<S['id']['type']>, currentVersion + 1)
+        eventStore.getEvents<E>(id as AggregateId<S['id']['type']>, currentVersion + 1)
       )
       if (!events.ok) {
         return err({

@@ -10,10 +10,8 @@ describe('[command] replay event function', () => {
   describe('createReplayEventFnFactory', () => {
     test('should return a function when counter aggregate is provided', () => {
       // Act
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const replayEventFn = createReplayEventFnFactory(counter.reducer)(deps)
+      const eventStore = new EventStoreInMemory()
+      const replayEventFn = createReplayEventFnFactory(counter.reducer)(eventStore)
 
       // Assert
       expect(replayEventFn).toBeDefined()
@@ -21,10 +19,8 @@ describe('[command] replay event function', () => {
 
     test('should return a function when counter2 aggregate is provided', () => {
       // Act
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const replayEventFn = createReplayEventFnFactory(counter2.reducer)(deps)
+      const eventStore = new EventStoreInMemory()
+      const replayEventFn = createReplayEventFnFactory(counter2.reducer)(eventStore)
 
       // Assert
       expect(replayEventFn).toBeDefined()
@@ -34,14 +30,12 @@ describe('[command] replay event function', () => {
   describe('ReplayEventFn', () => {
     test('should return a result with the state when the event is found', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const replayEventFn = createReplayEventFnFactory(counter.reducer)(deps)
+      const eventStore = new EventStoreInMemory()
+      const replayEventFn = createReplayEventFnFactory(counter.reducer)(eventStore)
 
       // Act
       const id = zeroId('counter')
-      await deps.eventStore.saveEvent({
+      await eventStore.saveEvent({
         type: 'created',
         id,
         payload: { count: 0 },
@@ -64,21 +58,19 @@ describe('[command] replay event function', () => {
 
     test('should return a result with the state when the event and snapshot is found', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const replayEventFn = createReplayEventFnFactory(counter.reducer)(deps)
+      const eventStore = new EventStoreInMemory()
+      const replayEventFn = createReplayEventFnFactory(counter.reducer)(eventStore)
 
       // Act
       const id = zeroId('counter')
-      await deps.eventStore.saveEvent({
+      await eventStore.saveEvent({
         type: 'created',
         id,
         payload: { count: 0 },
         version: 1,
         timestamp: new Date()
       })
-      await deps.eventStore.saveSnapshot({
+      await eventStore.saveSnapshot({
         type: 'active',
         id,
         count: 0,
@@ -101,17 +93,15 @@ describe('[command] replay event function', () => {
 
     test('should return a error when the snapshot can not be loaded', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      deps.eventStore.getSnapshot = async () => {
+      const eventStore = new EventStoreInMemory()
+      eventStore.getSnapshot = async () => {
         throw new Error('error')
       }
-      const replayEventFn = createReplayEventFnFactory(counter.reducer)(deps)
+      const replayEventFn = createReplayEventFnFactory(counter.reducer)(eventStore)
 
       // Act
       const id = zeroId('counter')
-      await deps.eventStore.saveEvent({
+      await eventStore.saveEvent({
         type: 'created',
         id,
         payload: { count: 0 },
@@ -130,13 +120,11 @@ describe('[command] replay event function', () => {
 
     test('should return a error when the events can not be loaded', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      deps.eventStore.getEvents = async () => {
+      const eventStore = new EventStoreInMemory()
+      eventStore.getEvents = async () => {
         throw new Error('error')
       }
-      const replayEventFn = createReplayEventFnFactory(counter.reducer)(deps)
+      const replayEventFn = createReplayEventFnFactory(counter.reducer)(eventStore)
 
       // Act
       const id = zeroId('counter')
@@ -153,10 +141,8 @@ describe('[command] replay event function', () => {
 
   test('should return a error when no events are stored', async () => {
     // Arrange
-    const deps = {
-      eventStore: new EventStoreInMemory()
-    }
-    const replayEventFn = createReplayEventFnFactory(counter.reducer)(deps)
+    const eventStore = new EventStoreInMemory()
+    const replayEventFn = createReplayEventFnFactory(counter.reducer)(eventStore)
 
     // Act
     const id = zeroId('counter')
@@ -172,17 +158,15 @@ describe('[command] replay event function', () => {
 
   test('should return a error when the reducer returns void', async () => {
     // Arrange
-    const deps = {
-      eventStore: new EventStoreInMemory()
-    }
+    const eventStore = new EventStoreInMemory()
     const reducer = (_: unknown): CounterState => {
       throw new Error('error')
     }
-    const replayEventFn = createReplayEventFnFactory(reducer)(deps)
+    const replayEventFn = createReplayEventFnFactory(reducer)(eventStore)
 
     // Act
     const id = zeroId('counter') as AggregateId<'counter'>
-    await deps.eventStore.saveEvent({
+    await eventStore.saveEvent({
       type: 'created',
       id,
       payload: { count: 0 },

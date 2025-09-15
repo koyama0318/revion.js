@@ -1,3 +1,4 @@
+import type { EventStore } from '../../types/adapter'
 import type {
   DomainEvent,
   ExtendedDomainEvent,
@@ -5,7 +6,6 @@ import type {
   Snapshot,
   State
 } from '../../types/core'
-import type { CommandHandlerDeps } from '../../types/framework'
 import type { AppError, AsyncResult } from '../../types/utils'
 import { err, ok, toAsyncResult } from '../../utils/result'
 
@@ -16,12 +16,10 @@ export type SaveEventFn<S extends State, E extends DomainEvent> = (
   event: ExtendedDomainEvent<E>
 ) => AsyncResult<void, AppError>
 
-export function createSaveEventFnFactory<
-  S extends State,
-  E extends DomainEvent,
-  D extends CommandHandlerDeps
->(): (deps: D) => SaveEventFn<S, E> {
-  return (deps: D) => {
+export function createSaveEventFnFactory<S extends State, E extends DomainEvent>(): (
+  eventStore: EventStore
+) => SaveEventFn<S, E> {
+  return (eventStore: EventStore) => {
     return async (state: ExtendedState<S>, event: ExtendedDomainEvent<E>) => {
       if (state.version !== event.version) {
         return err({
@@ -30,7 +28,7 @@ export function createSaveEventFnFactory<
         })
       }
 
-      const gotVersion = await toAsyncResult(() => deps.eventStore.getLastEventVersion(state.id))
+      const gotVersion = await toAsyncResult(() => eventStore.getLastEventVersion(state.id))
       if (!gotVersion.ok) {
         return err({
           code: 'LAST_EVENT_VERSION_CANNOT_BE_LOADED',
@@ -52,7 +50,7 @@ export function createSaveEventFnFactory<
           timestamp: new Date()
         }
 
-        const savedSnapshot = await toAsyncResult(() => deps.eventStore.saveSnapshot(snapshot))
+        const savedSnapshot = await toAsyncResult(() => eventStore.saveSnapshot(snapshot))
         if (!savedSnapshot.ok) {
           return err({
             code: 'SNAPSHOT_CANNOT_BE_SAVED',
@@ -62,7 +60,7 @@ export function createSaveEventFnFactory<
         }
       }
 
-      const savedEvents = await toAsyncResult(() => deps.eventStore.saveEvent(event))
+      const savedEvents = await toAsyncResult(() => eventStore.saveEvent(event))
       if (!savedEvents.ok) {
         return err({
           code: 'EVENTS_CANNOT_BE_SAVED',

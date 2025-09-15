@@ -13,7 +13,7 @@ const deciderMap = {
   decrement: ['active']
 } satisfies EventDeciderMap<CounterState, CounterCommand>
 
-const decider: EventDecider<CounterState, CounterCommand, CounterEvent> = {
+const decider: EventDecider<CounterState, CounterCommand, CounterEvent, typeof deciderMap> = {
   create: ({ command }) => {
     return {
       type: 'created',
