@@ -8,7 +8,7 @@ describe('[command] init event function', () => {
   describe('createInitEventFnFactory', () => {
     test('should return a function when counter aggregate is provided', () => {
       // Act
-      const initEventFn = createInitEventFnFactory(counter.decider, counter.reducer)()
+      const initEventFn = createInitEventFnFactory(counter.decider, counter.reducer, {})()
 
       // Assert
       expect(initEventFn).toBeDefined()
@@ -16,7 +16,7 @@ describe('[command] init event function', () => {
 
     test('should return a function when counter2 aggregate is provided', () => {
       // Act
-      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer)()
+      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer, {})()
 
       // Assert
       expect(initEventFn).toBeDefined()
@@ -24,9 +24,9 @@ describe('[command] init event function', () => {
   })
 
   describe('InitEventFn', () => {
-    test('should return a result with the new state and event when the command is valid', () => {
+    test('should return a result with the new state and event when the command is valid', async () => {
       // Arrange
-      const applyEventFn = createInitEventFnFactory(counter.decider, counter.reducer)()
+      const applyEventFn = createInitEventFnFactory(counter.decider, counter.reducer, {})()
 
       const id = zeroId('counter')
       const command: CounterCommand = {
@@ -36,7 +36,7 @@ describe('[command] init event function', () => {
       }
 
       // Act
-      const res = applyEventFn(command)
+      const res = await applyEventFn(command)
 
       // Assert
       expect(res).toBeDefined()
@@ -58,12 +58,12 @@ describe('[command] init event function', () => {
       }
     })
 
-    test('should return a result with an error when the event decider returns an error', () => {
+    test('should return a result with an error when the event decider returns an error', async () => {
       // Arrange
       const deciderFn = (_: unknown) => {
         throw new Error('error')
       }
-      const applyEventFn = createInitEventFnFactory(deciderFn, counter.reducer)()
+      const applyEventFn = createInitEventFnFactory(deciderFn, counter.reducer, {})()
 
       const id = zeroId('counter')
       const command: CounterCommand = {
@@ -73,7 +73,7 @@ describe('[command] init event function', () => {
       }
 
       // Act
-      const res = applyEventFn(command)
+      const res = await applyEventFn(command)
 
       // Assert
       expect(res).toBeDefined()
@@ -85,12 +85,12 @@ describe('[command] init event function', () => {
     })
   })
 
-  test('should return a result with an error when the reducer returns an error', () => {
+  test('should return a result with an error when the reducer returns an error', async () => {
     // Arrange
     const reducerFn = (_: unknown) => {
       throw new Error('error')
     }
-    const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn)()
+    const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn, {})()
 
     const id = zeroId('counter')
     const command: CounterCommand = {
@@ -100,7 +100,7 @@ describe('[command] init event function', () => {
     }
 
     // Act
-    const res = applyEventFn(command)
+    const res = await applyEventFn(command)
 
     // Assert
     expect(res).toBeDefined()

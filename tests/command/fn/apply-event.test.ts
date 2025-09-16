@@ -12,7 +12,7 @@ describe('[command] apply event function', () => {
   describe('createApplyEventFnFactory', () => {
     test('should return a function when counter aggregate is provided', () => {
       // Act
-      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)()
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer, {})()
 
       // Assert
       expect(applyEventFn).toBeDefined()
@@ -20,7 +20,7 @@ describe('[command] apply event function', () => {
 
     test('should return a function when counter2 aggregate is provided', () => {
       // Act
-      const applyEventFn = createApplyEventFnFactory(counter2.decider, counter2.reducer)()
+      const applyEventFn = createApplyEventFnFactory(counter2.decider, counter2.reducer, {})()
 
       // Assert
       expect(applyEventFn).toBeDefined()
@@ -28,9 +28,9 @@ describe('[command] apply event function', () => {
   })
 
   describe('ApplyEventFn', () => {
-    test('should return a result with the new state and event when the command is valid', () => {
+    test('should return a result with the new state and event when the command is valid', async () => {
       // Arrange
-      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)()
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer, {})()
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {
@@ -46,7 +46,7 @@ describe('[command] apply event function', () => {
       }
 
       // Act
-      const res = applyEventFn(state, command)
+      const res = await applyEventFn(state, command)
 
       // Assert
       expect(res).toBeDefined()
@@ -68,12 +68,12 @@ describe('[command] apply event function', () => {
       }
     })
 
-    test('should return a result with an error when the event decider returns an error', () => {
+    test('should return a result with an error when the event decider returns an error', async () => {
       // Arrange
       const deciderFn = (_: unknown) => {
         throw new Error('error')
       }
-      const applyEventFn = createApplyEventFnFactory(deciderFn, counter.reducer)()
+      const applyEventFn = createApplyEventFnFactory(deciderFn, counter.reducer, {})()
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {
@@ -89,7 +89,7 @@ describe('[command] apply event function', () => {
       }
 
       // Act
-      const res = applyEventFn(state, command)
+      const res = await applyEventFn(state, command)
 
       // Assert
       expect(res).toBeDefined()
@@ -100,12 +100,12 @@ describe('[command] apply event function', () => {
       }
     })
 
-    test('should return a result with an error when the reducer returns an error', () => {
+    test('should return a result with an error when the reducer returns an error', async () => {
       // Arrange
       const reducerFn = (_: unknown) => {
         throw new Error('error')
       }
-      const applyEventFn = createApplyEventFnFactory(counter.decider, reducerFn)()
+      const applyEventFn = createApplyEventFnFactory(counter.decider, reducerFn, {})()
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {
@@ -121,7 +121,7 @@ describe('[command] apply event function', () => {
       }
 
       // Act
-      const res = applyEventFn(state, command)
+      const res = await applyEventFn(state, command)
 
       // Assert
       expect(res).toBeDefined()
