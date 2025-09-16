@@ -308,4 +308,120 @@ describe('[command] command handler', () => {
       expect(typeof handlers[counter.type]).toBe('function')
     })
   })
+
+  describe('acceptsCommand operation mode parameter', () => {
+    test('calls acceptsCommand with "create" mode for new aggregates', async () => {
+      // Arrange
+      let capturedMode: string | undefined
+      const testAggregate = {
+        ...counter,
+        acceptsCommand: (_state: unknown, _commandd: unknown, mode: string) => {
+          capturedMode = mode
+          return true
+        }
+      }
+
+      const deps = {
+        eventStore: new EventStoreInMemory()
+      }
+      const handlers = createCommandHandlers(deps, [testAggregate])
+      const commandHandler = handlers[testAggregate.type]
+
+      // Act
+      await commandHandler(createCommand)
+
+      // Assert
+      expect(capturedMode).toBe('create')
+    })
+
+    test('calls acceptsCommand with "update" mode for existing aggregates', async () => {
+      // Arrange
+      let capturedMode: string | undefined
+      const testAggregate = {
+        ...counter,
+        acceptsCommand: (_state: unknown, _commandd: unknown, mode: string) => {
+          capturedMode = mode
+          return true
+        }
+      }
+
+      const deps = {
+        eventStore: new EventStoreInMemory()
+      }
+
+      // First create the aggregate
+      const handlers = createCommandHandlers(deps, [counter])
+      const commandHandler = handlers[counter.type]
+      await commandHandler(createCommand)
+
+      // Replace with test aggregate after creation
+      const testHandlers = createCommandHandlers(deps, [testAggregate])
+      const testHandler = testHandlers[testAggregate.type]
+
+      // Act - Update the existing aggregate
+      await testHandler(incrementCommand)
+
+      // Assert
+      expect(capturedMode).toBe('update')
+    })
+
+    test('rejects create command when acceptsCommand returns false for create mode', async () => {
+      // Arrange
+      const rejectingCreateAggregate = {
+        ...counter,
+        acceptsCommand: (_state: unknown, _commandd: unknown, mode: string) => {
+          return mode !== 'create'
+        }
+      }
+
+      const deps = {
+        eventStore: new EventStoreInMemory()
+      }
+      const handlers = createCommandHandlers(deps, [rejectingCreateAggregate])
+      const commandHandler = handlers[rejectingCreateAggregate.type]
+
+      // Act
+      const result = await commandHandler(createCommand)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('COMMAND_NOT_ACCEPTED')
+        expect(result.error.message).toContain('Create command not accepted')
+      }
+    })
+
+    test('rejects update command when acceptsCommand returns false for update mode', async () => {
+      // Arrange
+      const rejectingUpdateAggregate = {
+        ...counter,
+        acceptsCommand: (_state: unknown, _commandd: unknown, mode: string) => {
+          return mode !== 'update'
+        }
+      }
+
+      const deps = {
+        eventStore: new EventStoreInMemory()
+      }
+
+      // First create with normal counter
+      const normalHandlers = createCommandHandlers(deps, [counter])
+      const normalHandler = normalHandlers[counter.type]
+      await normalHandler(createCommand)
+
+      // Replace with rejecting aggregate
+      const testHandlers = createCommandHandlers(deps, [rejectingUpdateAggregate])
+      const testHandler = testHandlers[rejectingUpdateAggregate.type]
+
+      // Act - Try to update
+      const result = await testHandler(incrementCommand)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('COMMAND_NOT_ACCEPTED')
+        expect(result.error.message).toContain('Update command not accepted')
+      }
+    })
+  })
 })

@@ -131,5 +131,78 @@ describe('[command] apply event function', () => {
         expect(res.error.code).toBe('REDUCER_RETURNED_VOID')
       }
     })
+
+    test('should handle Promise-based event decider results', async () => {
+      // Arrange
+      const decider = async ({ command }) => {
+        return Promise.resolve({
+          type: 'created' as const,
+          id: command.id,
+          payload: { count: 42 }
+        })
+      }
+      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer, {})()
+
+      const id = zeroId('counter')
+      const state: ExtendedState<CounterState> = {
+        type: 'active',
+        id,
+        count: 0,
+        version: 0
+      }
+      const command: CounterCommand = {
+        type: 'create',
+        id,
+        payload: { count: 42 }
+      }
+
+      // Act
+      const res = await applyEventFn(state, command)
+
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.value.event.payload).toEqual({ count: 42 })
+        expect(res.value.state.count).toBe(42)
+      }
+    })
+
+    test('should pass deps to event decider function', async () => {
+      // Arrange
+      const testDeps = { externalService: { getValue: () => 99 } }
+      const decider = async ({ command, deps }) => {
+        return Promise.resolve({
+          type: 'created' as const,
+          id: command.id,
+          payload: { count: deps.externalService.getValue() }
+        })
+      }
+      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer, testDeps)()
+
+      const id = zeroId('counter')
+      const state: ExtendedState<CounterState> = {
+        type: 'active',
+        id,
+        count: 0,
+        version: 0
+      }
+      const command: CounterCommand = {
+        type: 'create',
+        id,
+        payload: { count: 0 }
+      }
+
+      // Act
+      const res = await applyEventFn(state, command)
+
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.value.event.payload).toEqual({ count: 99 })
+        expect(res.value.state.count).toBe(99)
+      }
+    })
   })
 })

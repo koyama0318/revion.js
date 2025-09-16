@@ -110,4 +110,65 @@ describe('[command] init event function', () => {
       expect(res.error.code).toBe('REDUCER_RETURNED_VOID')
     }
   })
+
+  test('should handle Promise-based event decider results', async () => {
+    // Arrange
+    const decider = async ({ command }) => {
+      return Promise.resolve({
+        type: 'created' as const,
+        id: command.id,
+        payload: { count: 55 }
+      })
+    }
+    const initEventFn = createInitEventFnFactory(decider, counter.reducer, {})()
+
+    const id = zeroId('counter')
+    const command: CounterCommand = {
+      type: 'create',
+      id,
+      payload: { count: 55 }
+    }
+
+    // Act
+    const res = await initEventFn(command)
+
+    // Assert
+    expect(res).toBeDefined()
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.value.event.payload.count).toEqual(55)
+      expect(res.value.state.count).toBe(55)
+    }
+  })
+
+  test('should pass deps to event decider function', async () => {
+    // Arrange
+    const testDeps = { externalService: { getValue: () => 77 } }
+    const decider = async ({ command, deps }) => {
+      return Promise.resolve({
+        type: 'created' as const,
+        id: command.id,
+        payload: { count: deps.externalService.getValue() }
+      })
+    }
+    const initEventFn = createInitEventFnFactory(decider, counter.reducer, testDeps)()
+
+    const id = zeroId('counter')
+    const command: CounterCommand = {
+      type: 'create',
+      id,
+      payload: { count: 0 }
+    }
+
+    // Act
+    const res = await initEventFn(command)
+
+    // Assert
+    expect(res).toBeDefined()
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.value.event.payload.count).toEqual(77)
+      expect(res.value.state.count).toBe(77)
+    }
+  })
 })
