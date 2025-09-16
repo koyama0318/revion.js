@@ -52,7 +52,7 @@ export class ReadModelStoreInMemory implements ReadModelStore {
                 itemValue.endsWith(value)
               )
             default:
-              return true
+              return false
           }
         })
       }

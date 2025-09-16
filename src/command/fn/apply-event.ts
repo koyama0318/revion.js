@@ -17,19 +17,26 @@ import { err, ok, toResult } from '../../utils/result'
 type ApplyEventFn<S extends State, C extends Command, E extends DomainEvent> = (
   state: ExtendedState<S>,
   command: C
-) => Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>
+) => Promise<Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>>
 
 export function createApplyEventFnFactory<
   S extends State,
   C extends Command,
-  E extends DomainEvent
->(eventDecider: EventDeciderFn<S, C, E>, reducer: ReducerFn<S, E>): () => ApplyEventFn<S, C, E> {
+  E extends DomainEvent,
+  D extends Record<string, unknown> = Record<string, unknown>
+>(
+  eventDecider: EventDeciderFn<S, C, E, D>,
+  reducer: ReducerFn<S, E>,
+  deps: D
+): () => ApplyEventFn<S, C, E> {
   return () => {
-    return (state: ExtendedState<S>, command: C) => {
+    return async (state: ExtendedState<S>, command: C) => {
+      const timestamp = new Date()
+
       const deciderCtx: EventDeciderContext = {
-        timestamp: new Date()
+        timestamp
       }
-      const eventRes = toResult(() => eventDecider({ ctx: deciderCtx, state, command }))
+      const eventRes = toResult(() => eventDecider({ ctx: deciderCtx, state, command, deps }))
       if (!eventRes.ok) {
         return err({
           code: 'EVENT_DECIDER_ERROR',
@@ -38,17 +45,20 @@ export function createApplyEventFnFactory<
         })
       }
 
-      const event: E = eventRes.value
+      const event: E | Promise<E> = eventRes.value
+      const resolvedEvent: E = await Promise.resolve(event)
       const lastVersion = state.version
+      const newVersion = lastVersion + 1
+
       const newExtendedEvent: ExtendedDomainEvent<E> = {
-        ...event,
+        ...resolvedEvent,
         id: state.id,
-        version: lastVersion + 1,
-        timestamp: new Date()
+        version: newVersion,
+        timestamp
       }
 
       const reducerCtx: ReducerContext = {
-        timestamp: new Date()
+        timestamp
       }
       const stateRes = toResult(() => reducer({ ctx: reducerCtx, state, event: newExtendedEvent }))
       if (!stateRes.ok) {
@@ -61,7 +71,7 @@ export function createApplyEventFnFactory<
       const newState: S = stateRes.value
       const newExtendedState: ExtendedState<S> = {
         ...newState,
-        version: lastVersion + 1
+        version: newVersion
       }
 
       return ok({

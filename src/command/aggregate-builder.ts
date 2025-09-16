@@ -14,9 +14,14 @@ import { createAcceptsCommand, createAcceptsEvent } from './helpers/create-accep
 /**
  * Internal type representing the accumulated values in the builder
  */
-type BuilderValue<S extends State, C extends Command, E extends DomainEvent> = {
+type BuilderValue<
+  S extends State,
+  C extends Command,
+  E extends DomainEvent,
+  D extends Record<string, unknown>
+> = {
   type: S['id']['type']
-  decider: EventDecider<S, C, E> | EventDecider<S, C, E, EventDeciderMap<S, C>>
+  decider: EventDecider<S, C, E, D> | EventDecider<S, C, E, D, EventDeciderMap<S, C>>
   deciderMap?: EventDeciderMap<S, C>
   reducer: Reducer<S, E> | Reducer<S, E, ReducerMap<S, E>>
   reducerMap?: ReducerMap<S, E>
@@ -35,56 +40,60 @@ export interface IAggregateBuilder<
   ST extends BuilderState,
   S extends State,
   C extends Command,
-  E extends DomainEvent
+  E extends DomainEvent,
+  D extends Record<string, unknown>
 > {
   readonly _state: ST
 
   type<T extends string>(
-    this: IAggregateBuilder<'initial', S, C, E>,
+    this: IAggregateBuilder<'initial', S, C, E, D>,
     value: T
-  ): IAggregateBuilder<'hasType', S, C, E>
+  ): IAggregateBuilder<'hasType', S, C, E, D>
 
   decider(
-    this: IAggregateBuilder<'hasType', S, C, E>,
-    value: EventDecider<S, C, E>
-  ): IAggregateBuilder<'hasDecider', S, C, E>
+    this: IAggregateBuilder<'hasType', S, C, E, D>,
+    value: EventDecider<S, C, E, D>
+  ): IAggregateBuilder<'hasDecider', S, C, E, D>
 
   deciderWithMap(
-    this: IAggregateBuilder<'hasType', S, C, E>,
-    value: EventDecider<S, C, E>,
+    this: IAggregateBuilder<'hasType', S, C, E, D>,
+    value: EventDecider<S, C, E, D>,
     transitionMap: EventDeciderMap<S, C>
-  ): IAggregateBuilder<'hasDecider', S, C, E>
+  ): IAggregateBuilder<'hasDecider', S, C, E, D>
 
   reducer(
-    this: IAggregateBuilder<'hasDecider', S, C, E>,
+    this: IAggregateBuilder<'hasDecider', S, C, E, D>,
     value: Reducer<S, E>
-  ): IAggregateBuilder<'complete', S, C, E>
+  ): IAggregateBuilder<'complete', S, C, E, D>
 
   reducerWithMap(
-    this: IAggregateBuilder<'hasDecider', S, C, E>,
+    this: IAggregateBuilder<'hasDecider', S, C, E, D>,
     value: Reducer<S, E>,
     transitionMap: ReducerMap<S, E>
-  ): IAggregateBuilder<'complete', S, C, E>
+  ): IAggregateBuilder<'complete', S, C, E, D>
 
-  build(this: IAggregateBuilder<'complete', S, C, E>): Aggregate<S, C, E>
+  build(this: IAggregateBuilder<'complete', S, C, E, D>): Aggregate<S, C, E, D>
 }
 
 /**
  * Validates that all required builder values are present
  */
-function isRequiredBuilderValue<S extends State, C extends Command, E extends DomainEvent>(
-  value: Partial<BuilderValue<S, C, E>>
-): value is BuilderValue<S, C, E> {
+function isRequiredBuilderValue<
+  S extends State,
+  C extends Command,
+  E extends DomainEvent,
+  D extends Record<string, unknown>
+>(value: Partial<BuilderValue<S, C, E, D>>): value is BuilderValue<S, C, E, D> {
   return value.type !== undefined && value.decider !== undefined && value.reducer !== undefined
 }
 
 /**
  * Helper to safely convert any decider to EventDeciderFn
  */
-function createEventDeciderFn<S extends State, C extends Command, E extends DomainEvent>(
-  decider: EventDecider<S, C, E> | EventDecider<S, C, E, EventDeciderMap<S, C>>
-): EventDeciderFn<S, C, E> {
-  return fromEventDecider(decider as EventDecider<S, C, E>)
+function createEventDeciderFn<S extends State, C extends Command, E extends DomainEvent, D>(
+  decider: EventDecider<S, C, E, D> | EventDecider<S, C, E, EventDeciderMap<S, C>>
+): EventDeciderFn<S, C, E, D> {
+  return fromEventDecider(decider as EventDecider<S, C, E, D>)
 }
 
 /**
@@ -99,16 +108,22 @@ function createReducerFn<S extends State, E extends DomainEvent>(
 /**
  * Converts EventDecider object to EventDeciderFn
  */
-export function fromEventDecider<S extends State, C extends Command, E extends DomainEvent>(
-  deciders: EventDecider<S, C, E>
-): EventDeciderFn<S, C, E> {
-  return ({ ctx, state, command }) => {
-    const decider = deciders[command.type as keyof typeof deciders]
+export function fromEventDecider<S extends State, C extends Command, E extends DomainEvent, D>(
+  deciders: EventDecider<S, C, E, D>
+): EventDeciderFn<S, C, E, D> {
+  return ({ ctx, state, command, deps }) => {
+    const deciderMap = deciders as Record<C['type'], EventDeciderFn<S, C, E, D>>
+    const decider = deciderMap[command.type as C['type']]
     if (!decider) {
       throw new Error(`No decider found for type: ${String(command.type)}`)
     }
 
-    return decider({ ctx, state, command: command as Extract<C, { type: typeof command.type }> })
+    return decider({
+      ctx,
+      state,
+      command: command as Extract<C, { type: typeof command.type }>,
+      deps
+    })
   }
 }
 
@@ -155,65 +170,66 @@ export class AggregateBuilder<
   ST extends BuilderState,
   S extends State,
   C extends Command,
-  E extends DomainEvent
+  E extends DomainEvent,
+  D extends Record<string, unknown>
 > {
   // @ts-expect-error: phantom type to enforce state transitions
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: phantom type to enforce state transitions
   private readonly _state!: ST
 
-  constructor(private readonly value: Readonly<Partial<BuilderValue<S, C, E>>>) {}
+  constructor(private readonly value: Readonly<Partial<BuilderValue<S, C, E, D>>>) {}
 
   type(
-    this: AggregateBuilder<'initial', S, C, E>,
+    this: AggregateBuilder<'initial', S, C, E, D>,
     type: S['id']['type']
-  ): AggregateBuilder<'hasType', S, C, E> {
+  ): AggregateBuilder<'hasType', S, C, E, D> {
     return this.withValue<'hasType', { type: string }>({ type })
   }
 
   decider(
-    this: AggregateBuilder<'hasType', S, C, E>,
-    decider: EventDecider<S, C, E>
-  ): AggregateBuilder<'hasDecider', S, C, E> {
-    return this.withValue<'hasDecider', { decider: EventDecider<S, C, E> }>({ decider })
+    this: AggregateBuilder<'hasType', S, C, E, D>,
+    decider: EventDecider<S, C, E, D>
+  ): AggregateBuilder<'hasDecider', S, C, E, D> {
+    return this.withValue<'hasDecider', { decider: EventDecider<S, C, E, D> }>({ decider })
   }
 
   deciderWithMap<DM extends EventDeciderMap<S, C>>(
-    this: AggregateBuilder<'hasType', S, C, E>,
-    decider: EventDecider<S, C, E, DM>,
+    this: AggregateBuilder<'hasType', S, C, E, D>,
+    decider: EventDecider<S, C, E, D, DM>,
     deciderMap: DM
-  ): AggregateBuilder<'hasDecider', S, C, E> {
-    return this.withValue<'hasDecider', { decider: EventDecider<S, C, E, DM>; deciderMap: DM }>({
+  ): AggregateBuilder<'hasDecider', S, C, E, D> {
+    return this.withValue<'hasDecider', { decider: EventDecider<S, C, E, D, DM>; deciderMap: DM }>({
       decider,
       deciderMap
     })
   }
 
   reducer(
-    this: AggregateBuilder<'hasDecider', S, C, E>,
+    this: AggregateBuilder<'hasDecider', S, C, E, D>,
     reducer: Reducer<S, E>
-  ): AggregateBuilder<'complete', S, C, E> {
+  ): AggregateBuilder<'complete', S, C, E, D> {
     return this.withValue<'complete', { reducer: Reducer<S, E> }>({ reducer })
   }
 
   reducerWithMap<RM extends ReducerMap<S, E>>(
-    this: AggregateBuilder<'hasDecider', S, C, E>,
+    this: AggregateBuilder<'hasDecider', S, C, E, D>,
     reducer: Reducer<S, E, RM>,
     reducerMap: RM
-  ): AggregateBuilder<'complete', S, C, E> {
+  ): AggregateBuilder<'complete', S, C, E, D> {
     return this.withValue<'complete', { reducer: Reducer<S, E, RM>; reducerMap: RM }>({
       reducer,
       reducerMap
     })
   }
 
-  private withValue<NS extends BuilderState, T extends Partial<BuilderValue<S, C, E>>>(
+  private withValue<NS extends BuilderState, T extends Partial<BuilderValue<S, C, E, D>>>(
     updates: T
-  ): AggregateBuilder<NS, S, C, E> {
+  ): AggregateBuilder<NS, S, C, E, D> {
     const newValue = { ...this.value, ...updates }
-    return new AggregateBuilder<NS, S, C, E>(newValue)
+    return new AggregateBuilder<NS, S, C, E, D>(newValue)
   }
 
-  build(this: AggregateBuilder<'complete', S, C, E>): Aggregate<S, C, E> {
+  build(this: AggregateBuilder<'complete', S, C, E, D>): Aggregate<S, C, E, D> {
     if (!isRequiredBuilderValue(this.value)) {
       throw new Error('Aggregate is not ready to build. Missing required properties.')
     }
@@ -228,12 +244,17 @@ export class AggregateBuilder<
       type: this.value.type,
       acceptsCommand,
       acceptsEvent,
-      decider: createEventDeciderFn(this.value.decider),
+      decider: createEventDeciderFn(this.value.decider as EventDecider<S, C, E, D>),
       reducer: createReducerFn(this.value.reducer)
     }
   }
 }
 
-export function createAggregate<S extends State, C extends Command, E extends DomainEvent>() {
-  return new AggregateBuilder<'initial', S, C, E>({})
+export function createAggregate<
+  S extends State,
+  C extends Command,
+  E extends DomainEvent,
+  D extends Record<string, unknown> = Record<string, unknown>
+>() {
+  return new AggregateBuilder<'initial', S, C, E, D>({})
 }

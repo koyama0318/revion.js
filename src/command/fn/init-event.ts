@@ -16,14 +16,20 @@ import { err, ok, toResult } from '../../utils/result'
 
 type InitEventFn<S extends State, C extends Command, E extends DomainEvent> = (
   command: C
-) => Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>
+) => Promise<Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>>
 
-export function createInitEventFnFactory<S extends State, C extends Command, E extends DomainEvent>(
-  eventDecider: EventDeciderFn<S, C, E>,
-  reducer: ReducerFn<S, E>
+export function createInitEventFnFactory<
+  S extends State,
+  C extends Command,
+  E extends DomainEvent,
+  D extends Record<string, unknown> = Record<string, unknown>
+>(
+  eventDecider: EventDeciderFn<S, C, E, D>,
+  reducer: ReducerFn<S, E>,
+  deps: D
 ): () => InitEventFn<S, C, E> {
   return () => {
-    return (command: C) => {
+    return async (command: C) => {
       // Represents the provisional initial state in the event sourcing pattern.
       // This state is used as the starting point before any events have been applied.
       // It is constructed using the aggregate ID from the command.
@@ -36,7 +42,7 @@ export function createInitEventFnFactory<S extends State, C extends Command, E e
         timestamp: new Date()
       }
       const eventRes = toResult(() =>
-        eventDecider({ ctx: deciderCtx, state: provisionalState, command })
+        eventDecider({ ctx: deciderCtx, state: provisionalState, command, deps })
       )
       if (!eventRes.ok) {
         return err({
@@ -46,17 +52,21 @@ export function createInitEventFnFactory<S extends State, C extends Command, E e
         })
       }
 
-      const event: E = eventRes.value
+      const event: E | Promise<E> = eventRes.value
+      const resolvedEvent: E = await Promise.resolve(event)
       const lastVersion = provisionalState.version
+      const newVersion = lastVersion + 1
+      const timestamp = new Date()
+
       const newExtendedEvent: ExtendedDomainEvent<E> = {
-        ...event,
+        ...resolvedEvent,
         id: provisionalState.id,
-        version: lastVersion + 1,
-        timestamp: new Date()
+        version: newVersion,
+        timestamp
       }
 
       const reducerCtx: ReducerContext = {
-        timestamp: new Date()
+        timestamp
       }
       const stateRes = toResult(() =>
         reducer({
@@ -75,7 +85,7 @@ export function createInitEventFnFactory<S extends State, C extends Command, E e
       const newState: S = stateRes.value
       const newExtendedState: ExtendedState<S> = {
         ...newState,
-        version: lastVersion + 1
+        version: newVersion
       }
 
       return ok({

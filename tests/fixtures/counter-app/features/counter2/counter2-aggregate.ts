@@ -5,7 +5,12 @@ import type {
   Reducer,
   ReducerMap
 } from '../../../../../src/types/command'
-import type { CounterCommand, CounterEvent, CounterState } from './types'
+import type { CounterCommand, CounterEvent, CounterId, CounterState } from './types'
+
+type CounterRepository = {
+  getCounter(id: CounterId): Promise<CounterState>
+  saveCounter(counter: CounterState): Promise<void>
+}
 
 const deciderMap = {
   create: [],
@@ -13,8 +18,17 @@ const deciderMap = {
   decrement: ['active']
 } satisfies EventDeciderMap<CounterState, CounterCommand>
 
-const decider: EventDecider<CounterState, CounterCommand, CounterEvent, typeof deciderMap> = {
-  create: ({ command }) => {
+type Deps = {
+  counterRepository: CounterRepository
+}
+
+const decider: EventDecider<CounterState, CounterCommand, CounterEvent, Deps, typeof deciderMap> = {
+  create: async ({ command, deps }) => {
+    const counter = await deps.counterRepository.getCounter(command.id)
+    if (counter) {
+      throw new Error(`Counter with id ${command.id.value} already exists`)
+    }
+
     return {
       type: 'created',
       id: command.id,
@@ -57,7 +71,7 @@ const reducer: Reducer<CounterState, CounterEvent, typeof reducerMap> = {
   }
 }
 
-export const counter2 = createAggregate<CounterState, CounterCommand, CounterEvent>()
+export const counter2 = createAggregate<CounterState, CounterCommand, CounterEvent, Deps>()
   .type('counter')
   .deciderWithMap(decider, deciderMap)
   .reducerWithMap(reducer, reducerMap)
