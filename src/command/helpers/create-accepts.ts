@@ -2,7 +2,7 @@ import type {
   AcceptsCommandFn,
   AcceptsEventFn,
   ApplyEventType,
-  DeciderMap,
+  EventDeciderMap,
   ReducerMap
 } from '../../types/command'
 import type { Command, DomainEvent, State } from '../../types/core'
@@ -22,7 +22,7 @@ const isMapVoid = <T extends { type: string }>(map: Record<string, string[]>, ke
 }
 
 export const createAcceptsCommand = <S extends State, C extends Command>(
-  map: DeciderMap<S, C>
+  map: EventDeciderMap<S, C>
 ): AcceptsCommandFn<S, C> => {
   return (state: S, command: C, eventType: ApplyEventType) => {
     // If no map is provided, accept any command for any state.

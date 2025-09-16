@@ -1,7 +1,7 @@
 import { createAggregate } from '../../../../../src/command/aggregate-builder'
 import type {
-  DeciderMap,
   EventDecider,
+  EventDeciderMap,
   Reducer,
   ReducerMap
 } from '../../../../../src/types/command'
@@ -11,9 +11,9 @@ const deciderMap = {
   create: [],
   increment: ['active'],
   decrement: ['active']
-} satisfies DeciderMap<CounterState, CounterCommand>
+} satisfies EventDeciderMap<CounterState, CounterCommand>
 
-const decider: EventDecider<CounterState, CounterCommand, CounterEvent> = {
+const decider: EventDecider<CounterState, CounterCommand, CounterEvent, typeof deciderMap> = {
   create: ({ command }) => {
     return {
       type: 'created',

@@ -18,10 +18,10 @@ function createCommandHandlerFactory<
   D extends CommandHandlerDeps
 >(aggregate: Aggregate<S, C, E>): CommandHandlerFactory<D> {
   return (deps: D) => {
-    const replayFn = createReplayEventFnFactory<S, E, D>(aggregate.reducer)(deps)
+    const replayFn = createReplayEventFnFactory<S, E>(aggregate.reducer)(deps.eventStore)
     const initFn = createInitEventFnFactory<S, C, E>(aggregate.decider, aggregate.reducer)()
     const applyFn = createApplyEventFnFactory<S, C, E>(aggregate.decider, aggregate.reducer)()
-    const saveFn = createSaveEventFnFactory<S, E, D>()(deps)
+    const saveFn = createSaveEventFnFactory<S, E>()(deps.eventStore)
 
     // Handles aggregate creation or update based on the incoming command
     return async (command: Command): CommandResult => {

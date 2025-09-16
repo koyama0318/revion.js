@@ -6,12 +6,10 @@ import type { CounterEvent, CounterState } from '../../fixtures/counter-app/feat
 
 describe('[command] save event function', () => {
   describe('createSaveEventFnFactory', () => {
-    test('should return a function when deps is provided', () => {
+    test('should return a function when eventStore is provided', () => {
       // Act
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const eventStore = new EventStoreInMemory()
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       // Assert
       expect(saveEventFn).toBeDefined()
@@ -21,10 +19,8 @@ describe('[command] save event function', () => {
   describe('SaveEventFn', () => {
     test('should return ok when the event is saved', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const eventStore = new EventStoreInMemory()
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       // Act
       const id = zeroId('counter')
@@ -49,10 +45,8 @@ describe('[command] save event function', () => {
 
     test('should return ok when the event and shapshot are saved', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const eventStore = new EventStoreInMemory()
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       const id = zeroId('counter')
       const createEvent: ExtendedDomainEvent<CounterEvent> = {
@@ -74,7 +68,7 @@ describe('[command] save event function', () => {
       )
       const events = [createEvent, ...incrementEvents]
       for (const event of events) {
-        await deps.eventStore.saveEvent(event)
+        await eventStore.saveEvent(event)
       }
 
       // Act
@@ -91,7 +85,7 @@ describe('[command] save event function', () => {
         timestamp: new Date()
       }
       const res = await saveEventFn(state, event)
-      const snapshot = await deps.eventStore.getSnapshot(id)
+      const snapshot = await eventStore.getSnapshot(id)
 
       // Assert
       expect(res.ok).toBe(true)
@@ -106,13 +100,11 @@ describe('[command] save event function', () => {
 
     test('should return error when the snapshot can not be saved', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      deps.eventStore.saveSnapshot = async () => {
+      const eventStore = new EventStoreInMemory()
+      eventStore.saveSnapshot = async () => {
         throw new Error('error')
       }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       const id = zeroId('counter')
       const createEvent: ExtendedDomainEvent<CounterEvent> = {
@@ -134,7 +126,7 @@ describe('[command] save event function', () => {
       )
       const events = [createEvent, ...incrementEvents]
       for (const event of events) {
-        await deps.eventStore.saveEvent(event)
+        await eventStore.saveEvent(event)
       }
 
       // Act
@@ -162,10 +154,8 @@ describe('[command] save event function', () => {
 
     test('should return error when the state and event versions mismatch', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const eventStore = new EventStoreInMemory()
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       // Act
       const id = zeroId('counter')
@@ -194,13 +184,11 @@ describe('[command] save event function', () => {
 
     test('should return error when the last event version can not be loaded', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      deps.eventStore.getLastEventVersion = async () => {
+      const eventStore = new EventStoreInMemory()
+      eventStore.getLastEventVersion = async () => {
         throw new Error('error')
       }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       // Act
       const id = zeroId('counter')
@@ -229,10 +217,8 @@ describe('[command] save event function', () => {
 
     test('should return error when the event version is not the next version', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const eventStore = new EventStoreInMemory()
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       // Act
       const id = zeroId('counter')
@@ -261,13 +247,11 @@ describe('[command] save event function', () => {
 
     test('should return a error when the events can not be loaded', async () => {
       // Arrange
-      const deps = {
-        eventStore: new EventStoreInMemory()
-      }
-      deps.eventStore.saveEvent = async () => {
+      const eventStore = new EventStoreInMemory()
+      eventStore.saveEvent = async () => {
         throw new Error('error')
       }
-      const saveEventFn = createSaveEventFnFactory()(deps)
+      const saveEventFn = createSaveEventFnFactory()(eventStore)
 
       // Act
       const id = zeroId('counter')

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createAggregate, fromReducer } from '../../src/command/aggregate-builder'
-import type { DeciderMap, EventDecider, Reducer, ReducerMap } from '../../src/types/command'
+import type { EventDecider, EventDeciderMap, Reducer, ReducerMap } from '../../src/types/command'
 import type { AggregateId } from '../../src/types/core'
 
 // Test types
@@ -76,7 +76,7 @@ describe('[command] aggregate builder', () => {
 
     test('builds functioning aggregate with decider and reducer maps', () => {
       // Arrange
-      const deciderMap: DeciderMap<TestState, TestCommand> = {
+      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
         deactivate: ['active', 'inactive']
@@ -103,7 +103,7 @@ describe('[command] aggregate builder', () => {
 
     test('builds functioning aggregate with decider map and reducer', () => {
       // Arrange
-      const deciderMap: DeciderMap<TestState, TestCommand> = {
+      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
         deactivate: ['active', 'inactive']

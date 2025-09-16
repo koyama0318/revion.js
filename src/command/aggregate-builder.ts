@@ -1,9 +1,9 @@
 import { produce } from 'immer'
 import type {
   Aggregate,
-  DeciderMap,
   EventDecider,
   EventDeciderFn,
+  EventDeciderMap,
   Reducer,
   ReducerFn,
   ReducerMap
@@ -16,8 +16,8 @@ import { createAcceptsCommand, createAcceptsEvent } from './helpers/create-accep
  */
 type BuilderValue<S extends State, C extends Command, E extends DomainEvent> = {
   type: S['id']['type']
-  decider: EventDecider<S, C, E> | EventDecider<S, C, E, DeciderMap<S, C>>
-  deciderMap?: DeciderMap<S, C>
+  decider: EventDecider<S, C, E> | EventDecider<S, C, E, EventDeciderMap<S, C>>
+  deciderMap?: EventDeciderMap<S, C>
   reducer: Reducer<S, E> | Reducer<S, E, ReducerMap<S, E>>
   reducerMap?: ReducerMap<S, E>
 }
@@ -52,7 +52,7 @@ export interface IAggregateBuilder<
   deciderWithMap(
     this: IAggregateBuilder<'hasType', S, C, E>,
     value: EventDecider<S, C, E>,
-    transitionMap: DeciderMap<S, C>
+    transitionMap: EventDeciderMap<S, C>
   ): IAggregateBuilder<'hasDecider', S, C, E>
 
   reducer(
@@ -82,7 +82,7 @@ function isRequiredBuilderValue<S extends State, C extends Command, E extends Do
  * Helper to safely convert any decider to EventDeciderFn
  */
 function createEventDeciderFn<S extends State, C extends Command, E extends DomainEvent>(
-  decider: EventDecider<S, C, E> | EventDecider<S, C, E, DeciderMap<S, C>>
+  decider: EventDecider<S, C, E> | EventDecider<S, C, E, EventDeciderMap<S, C>>
 ): EventDeciderFn<S, C, E> {
   return fromEventDecider(decider as EventDecider<S, C, E>)
 }
@@ -177,7 +177,7 @@ export class AggregateBuilder<
     return this.withValue<'hasDecider', { decider: EventDecider<S, C, E> }>({ decider })
   }
 
-  deciderWithMap<DM extends DeciderMap<S, C>>(
+  deciderWithMap<DM extends EventDeciderMap<S, C>>(
     this: AggregateBuilder<'hasType', S, C, E>,
     decider: EventDecider<S, C, E, DM>,
     deciderMap: DM
@@ -218,7 +218,7 @@ export class AggregateBuilder<
       throw new Error('Aggregate is not ready to build. Missing required properties.')
     }
 
-    const deciderMap: DeciderMap<S, C> = this.value.deciderMap ?? ({} as DeciderMap<S, C>)
+    const deciderMap: EventDeciderMap<S, C> = this.value.deciderMap ?? ({} as EventDeciderMap<S, C>)
     const acceptsCommand = createAcceptsCommand<S, C>(deciderMap)
 
     const reducerMap: ReducerMap<S, E> = this.value.reducerMap ?? ({} as ReducerMap<S, E>)
