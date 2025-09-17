@@ -41,9 +41,15 @@ export type QueryOption<T extends ReadModel> = {
   range?: RangeOption
 }
 
-export interface ReadModelStore {
-  findMany<T extends ReadModel>(type: T['type'], options: QueryOption<T>): Promise<T[]>
-  findById<T extends ReadModel>(type: T['type'], id: string): Promise<T | null>
-  save<T extends ReadModel>(model: T): Promise<void>
-  delete<T extends ReadModel>(model: T): Promise<void>
+export interface ReadModelStore<M extends ReadModel = ReadModel> {
+  findMany<T extends M['type']>(
+    type: T,
+    options: QueryOption<M extends { type: T } ? M : never>
+  ): Promise<(M extends { type: T } ? M : never)[]>
+  findById<T extends M['type']>(
+    type: T,
+    id: string
+  ): Promise<(M extends { type: T } ? M : never) | null>
+  save(model: M): Promise<void>
+  delete(model: M): Promise<void>
 }
