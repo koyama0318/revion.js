@@ -41,15 +41,16 @@ export type QueryOption<T extends ReadModel> = {
   range?: RangeOption
 }
 
+export type ModelOfType<M extends ReadModel, T extends M['type']> = M extends { type: T }
+  ? M
+  : never
+
 export interface ReadModelStore<M extends ReadModel = ReadModel> {
   findMany<T extends M['type']>(
     type: T,
-    options: QueryOption<M extends { type: T } ? M : never>
-  ): Promise<(M extends { type: T } ? M : never)[]>
-  findById<T extends M['type']>(
-    type: T,
-    id: string
-  ): Promise<(M extends { type: T } ? M : never) | null>
+    options: QueryOption<ModelOfType<M, T>>
+  ): Promise<ModelOfType<M, T>[]>
+  findById<T extends M['type']>(type: T, id: string): Promise<ModelOfType<M, T> | null>
   save(model: M): Promise<void>
   delete(model: M): Promise<void>
 }
