@@ -1,14 +1,19 @@
 import type { QueryOption, ReadModelStore } from '../types/adapter'
 import type { ReadModel } from '../types/core'
 
-export class ReadModelStoreInMemory implements ReadModelStore {
-  storage: Record<string, Record<string, ReadModel>> = {}
+type ModelOfType<M extends ReadModel, T extends M['type']> = M extends { type: T } ? M : never
 
-  async findMany<T extends ReadModel>(type: T['type'], options: QueryOption<T>): Promise<T[]> {
+export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements ReadModelStore<M> {
+  storage: Record<string, Record<string, M>> = {}
+
+  async findMany<T extends M['type']>(
+    type: T,
+    options: QueryOption<ModelOfType<M, T>>
+  ): Promise<ModelOfType<M, T>[]> {
     const dataMap = this.storage[type as string]
     if (!dataMap) return []
 
-    let items: T[] = Object.values(dataMap) as T[]
+    let items = Object.values(dataMap) as ModelOfType<M, T>[]
 
     // filter
     if (options.filter) {
@@ -80,23 +85,36 @@ export class ReadModelStoreInMemory implements ReadModelStore {
     return paged
   }
 
-  async findById<T extends ReadModel>(type: T['type'], id: string): Promise<T | null> {
+  async findById<T extends M['type']>(type: T, id: string): Promise<ModelOfType<M, T> | null> {
     const typeStorage = this.storage[type as string] || {}
     const readModel = typeStorage[id]
     if (!readModel) return null
-    return readModel as T
+    return readModel as ModelOfType<M, T>
   }
 
-  async save<T extends ReadModel>(model: T): Promise<void> {
+  async save(model: M): Promise<void> {
     const typeStorage = this.storage[model.type] || {}
     typeStorage[model.id] = model
     this.storage[model.type] = typeStorage
   }
 
-  async delete<T extends ReadModel>(model: T): Promise<void> {
+  async delete(model: M): Promise<void> {
     const typeStorage = this.storage[model.type]
     if (typeStorage) {
       delete typeStorage[model.id]
     }
+  }
+
+  // Test helper methods
+  addTestData(models: M[]): void {
+    for (const model of models) {
+      const typeStorage = this.storage[model.type] || {}
+      typeStorage[model.id] = model
+      this.storage[model.type] = typeStorage
+    }
+  }
+
+  clear(): void {
+    this.storage = {}
   }
 }
