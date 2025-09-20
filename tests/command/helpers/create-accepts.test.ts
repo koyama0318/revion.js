@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { zeroId } from '../../../src'
 import {
-  createAcceptsCommand,
-  createAcceptsEvent
-} from '../../../src/command/helpers/create-accepts'
+  mapToAcceptsCommandFn,
+  mapToAcceptsEventFn
+} from '../../../src/command/mapper/map-to-accepts-fn'
 import type { EventDeciderMap, ReducerMap } from '../../../src/types/command'
 import type { AggregateId } from '../../../src/types/core'
 
@@ -25,10 +25,10 @@ type TestEvent =
   | { type: 'deactivated'; id: AggregateId }
 
 describe('[command] create accepts function', () => {
-  describe('createAcceptsCommandFn', () => {
+  describe('mapToAcceptsCommandFnFn', () => {
     test('accepts all command and state combinations when empty map is provided', () => {
       const emptyMap = {} as EventDeciderMap<TestState, TestCommand>
-      const acceptsCommand = createAcceptsCommand(emptyMap)
+      const acceptsCommand = mapToAcceptsCommandFn(emptyMap)
 
       const id = zeroId('test')
       const initialState: TestState = { type: 'initial', id }
@@ -53,7 +53,7 @@ describe('[command] create accepts function', () => {
         deactivate: ['active'] // deactivate command only accepted in active state
       }
 
-      const acceptsCommand = createAcceptsCommand(deciderMap)
+      const acceptsCommand = mapToAcceptsCommandFn(deciderMap)
       const id = zeroId('test')
       const createCommand: TestCommand = { type: 'create', id, payload: { value: 5 } }
       const anyState: TestState = { type: 'active', id, value: 10 }
@@ -70,7 +70,7 @@ describe('[command] create accepts function', () => {
         deactivate: ['active']
       }
 
-      const acceptsCommand = createAcceptsCommand(deciderMap)
+      const acceptsCommand = mapToAcceptsCommandFn(deciderMap)
       const id = zeroId('test')
       const updateCommand: TestCommand = { type: 'update', id, payload: { value: 15 } }
       const anyState: TestState = { type: 'active', id, value: 10 }
@@ -87,7 +87,7 @@ describe('[command] create accepts function', () => {
         deactivate: ['active']
       }
 
-      const acceptsCommand = createAcceptsCommand(deciderMap)
+      const acceptsCommand = mapToAcceptsCommandFn(deciderMap)
       const id = zeroId('test')
       const activeState: TestState = { type: 'active', id, value: 10 }
       const initialState: TestState = { type: 'initial', id }
@@ -108,7 +108,7 @@ describe('[command] create accepts function', () => {
         deactivate: ['active']
       }
 
-      const acceptsCommand = createAcceptsCommand(deciderMap)
+      const acceptsCommand = mapToAcceptsCommandFn(deciderMap)
       const id = zeroId('test')
       const activeState: TestState = { type: 'active', id, value: 10 }
       const initialState: TestState = { type: 'initial', id }
@@ -129,7 +129,7 @@ describe('[command] create accepts function', () => {
         deactivate: ['active']
       }
 
-      const acceptsCommand = createAcceptsCommand(deciderMap)
+      const acceptsCommand = mapToAcceptsCommandFn(deciderMap)
       const id = zeroId('test')
       const unknownCommand = { type: 'unknown', id } as unknown as TestCommand
       const activeState: TestState = { type: 'active', id, value: 10 }
@@ -139,10 +139,10 @@ describe('[command] create accepts function', () => {
     })
   })
 
-  describe('createAcceptsEventFn', () => {
+  describe('mapToAcceptsEventFnFn', () => {
     test('accepts all event and state combinations when empty map is provided', () => {
       const emptyMap = {} as ReducerMap<TestState, TestEvent>
-      const acceptsEvent = createAcceptsEvent(emptyMap)
+      const acceptsEvent = mapToAcceptsEventFn(emptyMap)
 
       const id = zeroId('test')
       const initialState: TestState = { type: 'initial', id }
@@ -167,7 +167,7 @@ describe('[command] create accepts function', () => {
         deactivated: ['active'] // deactivated event only applies to active state
       }
 
-      const acceptsEvent = createAcceptsEvent(reducerMap)
+      const acceptsEvent = mapToAcceptsEventFn(reducerMap)
       const id = zeroId('test')
       const createdEvent: TestEvent = { type: 'created', id, payload: { value: 5 } }
       const anyState: TestState = { type: 'active', id, value: 10 }
@@ -184,7 +184,7 @@ describe('[command] create accepts function', () => {
         deactivated: ['active']
       }
 
-      const acceptsEvent = createAcceptsEvent(reducerMap)
+      const acceptsEvent = mapToAcceptsEventFn(reducerMap)
       const id = zeroId('test')
       const updatedEvent: TestEvent = { type: 'updated', id, payload: { value: 15 } }
       const anyState: TestState = { type: 'active', id, value: 10 }
@@ -201,7 +201,7 @@ describe('[command] create accepts function', () => {
         deactivated: ['active']
       }
 
-      const acceptsEvent = createAcceptsEvent(reducerMap)
+      const acceptsEvent = mapToAcceptsEventFn(reducerMap)
       const id = zeroId('test')
       const activeState: TestState = { type: 'active', id, value: 10 }
       const initialState: TestState = { type: 'initial', id }
@@ -222,7 +222,7 @@ describe('[command] create accepts function', () => {
         deactivated: ['active']
       }
 
-      const acceptsEvent = createAcceptsEvent(reducerMap)
+      const acceptsEvent = mapToAcceptsEventFn(reducerMap)
       const id = zeroId('test')
       const activeState: TestState = { type: 'active', id, value: 10 }
       const initialState: TestState = { type: 'initial', id }
@@ -243,7 +243,7 @@ describe('[command] create accepts function', () => {
         deactivated: ['active']
       }
 
-      const acceptsEvent = createAcceptsEvent(reducerMap)
+      const acceptsEvent = mapToAcceptsEventFn(reducerMap)
       const id = zeroId('test')
       const activatedEvent: TestEvent = { type: 'activated', id }
       const deactivatedEvent: TestEvent = { type: 'deactivated', id }
@@ -271,7 +271,7 @@ describe('[command] create accepts function', () => {
         deactivated: ['active']
       }
 
-      const acceptsEvent = createAcceptsEvent(reducerMap)
+      const acceptsEvent = mapToAcceptsEventFn(reducerMap)
       const id = zeroId('test')
       const unknownEvent = { type: 'unknown', id } as unknown as TestEvent
       const activeState: TestState = { type: 'active', id, value: 10 }
@@ -289,7 +289,7 @@ describe('[command] create accepts function', () => {
         deactivated: ['active'] // Add required property
       } as unknown as ReducerMap<TestState, TestEvent>
 
-      const acceptsEvent = createAcceptsEvent(mapWithNull)
+      const acceptsEvent = mapToAcceptsEventFn(mapWithNull)
       const id = zeroId('test')
       const activeState: TestState = { type: 'active', id, value: 10 }
 

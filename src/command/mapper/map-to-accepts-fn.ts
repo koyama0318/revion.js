@@ -21,7 +21,7 @@ const isMapVoid = <T extends { type: string }>(map: Record<string, string[]>, ke
   return map[key.type] !== undefined && map[key.type] !== null && map[key.type]?.length === 0
 }
 
-export const createAcceptsCommand = <S extends State, C extends Command>(
+export const mapToAcceptsCommandFn = <S extends State, C extends Command>(
   map: EventDeciderMap<S, C>
 ): AcceptsCommandFn<S, C> => {
   return (state: S, command: C, eventType: ApplyEventType) => {
@@ -32,7 +32,7 @@ export const createAcceptsCommand = <S extends State, C extends Command>(
   }
 }
 
-export const createAcceptsEvent = <S extends State, E extends DomainEvent>(
+export const mapToAcceptsEventFn = <S extends State, E extends DomainEvent>(
   map: ReducerMap<S, E>
 ): AcceptsEventFn<S, E> => {
   return (state: S, event: E, eventType: ApplyEventType) => {

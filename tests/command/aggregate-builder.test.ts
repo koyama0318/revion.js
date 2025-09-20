@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createAggregate, fromReducer } from '../../src/command/aggregate-builder'
+import { createAggregate } from '../../src/command/aggregate-builder'
 import type { EventDecider, EventDeciderMap, Reducer, ReducerMap } from '../../src/types/command'
 import type { AggregateId } from '../../src/types/core'
 
@@ -226,114 +226,6 @@ describe('[command] aggregate builder', () => {
       expect(newState.value).toBe(500)
       // But they should be different objects
       expect(newState).not.toBe(originalState)
-    })
-  })
-
-  describe('fromReducer utility', () => {
-    test('converts Reducer object to ReducerFn', () => {
-      // Arrange & Act
-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
-
-      // Assert
-      expect(typeof reducerFn).toBe('function')
-    })
-
-    test('converted ReducerFn processes events correctly', () => {
-      // Arrange
-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
-
-      const event: TestEvent = {
-        type: 'created',
-        id: testId('456'),
-        payload: { value: 100 }
-      }
-
-      const state = { type: 'inactive' as const, id: testId('456'), value: 0 }
-      const ctx = { timestamp: new Date() }
-
-      // Act
-      const result: TestState = reducerFn({ ctx, state, event })
-
-      // Assert
-      expect(result).toBeDefined()
-      expect(result.type).toBe('active')
-      expect(result.value).toBe(100)
-    })
-
-    test('handles different event types correctly', () => {
-      // Arrange
-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
-
-      const updateEvent: TestEvent = {
-        type: 'updated',
-        id: testId('789'),
-        payload: { value: 200 }
-      }
-
-      const state = { type: 'active' as const, id: testId('789'), value: 50 }
-      const ctx = { timestamp: new Date() }
-
-      // Act
-      const result = reducerFn({ ctx, state, event: updateEvent })
-
-      // Assert
-      expect(result).toBeDefined()
-      expect(result.value).toBe(200)
-    })
-
-    test('throws error for unknown event type', () => {
-      // Arrange
-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
-
-      const unknownEvent = {
-        type: 'unknown',
-        id: testId('error')
-      }
-
-      const state = { type: 'active' as const, id: testId('error'), value: 0 }
-      const ctx = { timestamp: new Date() }
-
-      // Act & Assert
-      expect(() => {
-        reducerFn({ ctx, state, event: unknownEvent as TestEvent })
-      }).toThrow('No reducer found for event type: unknown')
-    })
-
-    test('handles reducer that returns new state object', () => {
-      // Arrange
-      const replacingReducer: Reducer<TestState, TestEvent> = {
-        created: ({ event }) => ({
-          type: 'active',
-          id: event.id,
-          value: event.payload.value
-        }),
-        updated: ({ state, event }) => {
-          state.value = event.payload.value
-        },
-        deactivated: ({ state }) => {
-          state.type = 'inactive'
-        }
-      }
-
-      const reducerFn = fromReducer<TestState, TestEvent>(replacingReducer)
-
-      const event: TestEvent = {
-        type: 'created',
-        id: testId('replace'),
-        payload: { value: 300 }
-      }
-
-      const state = { type: 'inactive' as const, id: testId('old'), value: 0 }
-      const ctx = { timestamp: new Date() }
-
-      // Act
-      const result = reducerFn({ ctx, state, event })
-
-      // Assert
-      expect(result).toBeDefined()
-      expect(result.type).toBe('active')
-      expect(result.value).toBe(300)
-      expect(result.id).toEqual(testId('replace'))
     })
   })
 })
