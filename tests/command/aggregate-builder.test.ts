@@ -143,7 +143,7 @@ describe('[command] aggregate builder', () => {
       expect(typeof aggregate.reducer).toBe('function')
     })
 
-    test('created aggregate processes commands correctly', () => {
+    test('created aggregate processes commands correctly', async () => {
       // Arrange
       const aggregate = createAggregate<TestState, TestCommand, TestEvent>()
         .type('test')
@@ -161,14 +161,16 @@ describe('[command] aggregate builder', () => {
       const ctx = { timestamp: new Date() }
 
       // Act
-      const event = aggregate.decider({ ctx, state: mockState, command })
+      const event = aggregate.decider({ ctx, state: mockState, command, deps: {} })
 
       // Assert
       expect(event).toBeDefined()
-      expect(event.id).toEqual(testId('123'))
-      expect(event.type).toBe('created')
-      if (event.type === 'created') {
-        expect(event.payload).toEqual({ value: 42 })
+      // Handle potential Promise
+      const resolvedEvent = await Promise.resolve(event)
+      expect(resolvedEvent.id).toEqual(testId('123'))
+      expect(resolvedEvent.type).toBe('created')
+      if (resolvedEvent.type === 'created') {
+        expect(resolvedEvent.payload).toEqual({ value: 42 })
       }
     })
 
