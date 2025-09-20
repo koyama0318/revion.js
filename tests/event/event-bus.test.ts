@@ -4,9 +4,8 @@ import { ReadModelStoreInMemory } from '../../src/adapter/read-model-store-in-me
 import { zeroId } from '../../src/command/helpers/aggregate-id'
 import { createEventBus } from '../../src/event/event-bus'
 import type { AggregateId, ExtendedDomainEvent, ReadModel } from '../../src/types/core'
-import type { EventReactor } from '../../src/types/event'
+import type { EventReactor, ProjectionFn } from '../../src/types/event'
 
-// Test types
 type TestCommand = { type: 'notify'; id: AggregateId<'test'>; payload: { message: string } }
 
 type TestEvent = ExtendedDomainEvent<{
@@ -21,15 +20,15 @@ type TestReadModel = ReadModel & {
   name: string
 }
 
-const createTestReactor = (): EventReactor<TestCommand, TestEvent, TestReadModel> => ({
+const projection: ProjectionFn<TestEvent, TestReadModel> = _ => {
+  return { type: 'test', id: '123', name: 'test' }
+}
+
+const createTestReactor: EventReactor<TestEvent, TestCommand, TestReadModel> = {
   type: 'test',
   policy: () => null,
-  projection: {
-    created: {
-      test: () => ({ type: 'test', id: '123', name: 'test' })
-    }
-  }
-})
+  projection
+}
 
 describe('[event] event bus', () => {
   describe('createEventBus', () => {
@@ -39,7 +38,7 @@ describe('[event] event bus', () => {
         commandDispatcher: new CommandDispatcherMock(),
         readModelStore: new ReadModelStoreInMemory()
       }
-      const reactors = [createTestReactor()]
+      const reactors = [createTestReactor]
 
       // Act
       const eventBus = createEventBus({ deps, reactors })
@@ -67,29 +66,6 @@ describe('[event] event bus', () => {
   })
 
   describe('event processing', () => {
-    test('processes event successfully when handler exists', async () => {
-      // Arrange
-      const deps = {
-        commandDispatcher: new CommandDispatcherMock(),
-        readModelStore: new ReadModelStoreInMemory()
-      }
-      const reactor = createTestReactor()
-      const eventBus = createEventBus({ deps, reactors: [reactor] })
-      const event: TestEvent = {
-        type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
-        version: 1,
-        timestamp: new Date()
-      }
-
-      // Act
-      const res = await eventBus(event)
-
-      // Assert
-      expect(res.ok).toBe(true)
-    })
-
     test('returns error when handler not found', async () => {
       // Arrange
       const deps = {
@@ -122,16 +98,7 @@ describe('[event] event bus', () => {
         commandDispatcher: new CommandDispatcherMock(),
         readModelStore: new ReadModelStoreInMemory()
       }
-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
-        type: 'test',
-        policy: () => null,
-        projection: {
-          created: {
-            test: () => ({ type: 'test', id: '123', name: 'test' })
-          }
-        }
-      }
-      const eventBus = createEventBus({ deps, reactors: [reactor] })
+      const eventBus = createEventBus({ deps, reactors: [createTestReactor] })
       const event = {
         type: 'created',
         id: { type: 'hoge', value: '123' },

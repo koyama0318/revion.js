@@ -325,7 +325,7 @@ describe('[command] command handler', () => {
         eventStore: new EventStoreInMemory()
       }
       const handlers = createCommandHandlers(deps, [testAggregate])
-      const commandHandler = handlers[testAggregate.type]
+      const commandHandler = handlers[testAggregate.type]!
 
       // Act
       await commandHandler(createCommand)
@@ -351,12 +351,12 @@ describe('[command] command handler', () => {
 
       // First create the aggregate
       const handlers = createCommandHandlers(deps, [counter])
-      const commandHandler = handlers[counter.type]
+      const commandHandler = handlers[counter.type]!
       await commandHandler(createCommand)
 
       // Replace with test aggregate after creation
       const testHandlers = createCommandHandlers(deps, [testAggregate])
-      const testHandler = testHandlers[testAggregate.type]
+      const testHandler = testHandlers[testAggregate.type]!
 
       // Act - Update the existing aggregate
       await testHandler(incrementCommand)
@@ -378,7 +378,7 @@ describe('[command] command handler', () => {
         eventStore: new EventStoreInMemory()
       }
       const handlers = createCommandHandlers(deps, [rejectingCreateAggregate])
-      const commandHandler = handlers[rejectingCreateAggregate.type]
+      const commandHandler = handlers[rejectingCreateAggregate.type]!
 
       // Act
       const result = await commandHandler(createCommand)
@@ -406,12 +406,12 @@ describe('[command] command handler', () => {
 
       // First create with normal counter
       const normalHandlers = createCommandHandlers(deps, [counter])
-      const normalHandler = normalHandlers[counter.type]
+      const normalHandler = normalHandlers[counter.type]!
       await normalHandler(createCommand)
 
       // Replace with rejecting aggregate
       const testHandlers = createCommandHandlers(deps, [rejectingUpdateAggregate])
-      const testHandler = testHandlers[rejectingUpdateAggregate.type]
+      const testHandler = testHandlers[rejectingUpdateAggregate.type]!
 
       // Act - Try to update
       const result = await testHandler(incrementCommand)

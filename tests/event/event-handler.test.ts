@@ -65,10 +65,10 @@ describe('[event] event handler', () => {
         }),
         projection: {
           created: {
-            test: () => ({
+            test: ({ event }) => ({
               type: 'test',
-              id: '123',
-              name: 'test'
+              id: event.id.value,
+              name: event.payload.name
             })
           }
         }
@@ -76,7 +76,7 @@ describe('[event] event handler', () => {
 
       const deps = {
         commandDispatcher: new MockCommandDispatcherError(),
-        ReadModelStore: new MockReadModelStoreError()
+        readModelStore: new MockReadModelStoreError()
       }
 
       const handlers = createEventHandlers(deps, [reactor])
@@ -107,10 +107,10 @@ describe('[event] event handler', () => {
         policy: () => null, // No command dispatch
         projection: {
           created: {
-            test: () => ({
+            test: ({ event }) => ({
               type: 'test',
-              id: '123',
-              name: 'test'
+              id: event.id.value,
+              name: event.payload.name
             })
           }
         }
@@ -118,7 +118,7 @@ describe('[event] event handler', () => {
 
       const deps = {
         commandDispatcher: new MockCommandDispatcherError(),
-        ReadModelStore: new MockReadModelStoreError()
+        readModelStore: new MockReadModelStoreError()
       }
 
       const handlers = createEventHandlers(deps, [reactor])
@@ -152,7 +152,7 @@ describe('[event] event handler', () => {
             test: ({ event }) => ({
               type: 'test',
               id: event.id.value,
-              name: 'test'
+              name: event.payload.name
             })
           }
         }
@@ -160,7 +160,7 @@ describe('[event] event handler', () => {
 
       const deps = {
         commandDispatcher: new MockCommandDispatcherError(),
-        ReadModelStore: new MockReadModelStoreThrows()
+        readModelStore: new MockReadModelStoreThrows()
       }
 
       const handlers = createEventHandlers(deps, [reactor])
@@ -208,7 +208,7 @@ describe('[event] event handler', () => {
             test: ({ event }) => ({
               type: 'test',
               id: event.id.value,
-              name: 'test'
+              name: event.payload.name
             })
           }
         }
@@ -216,7 +216,7 @@ describe('[event] event handler', () => {
 
       const deps = {
         commandDispatcher: new MockCommandDispatcherError(),
-        ReadModelStore: new ThrowsStringDatabase()
+        readModelStore: new ThrowsStringDatabase()
       }
 
       const handlers = createEventHandlers(deps, [reactor])

@@ -15,8 +15,16 @@ describe('[command] init event function', () => {
     })
 
     test('should return a function when counter2 aggregate is provided', () => {
+      // Arrange
+      const deps = {
+        counterRepository: {
+          getCounter: async () => ({ type: 'active' as const, id: zeroId('counter'), count: 0 }),
+          saveCounter: async () => {}
+        }
+      }
+
       // Act
-      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer, {})()
+      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer, deps)()
 
       // Assert
       expect(initEventFn).toBeDefined()
@@ -113,7 +121,7 @@ describe('[command] init event function', () => {
 
   test('should handle Promise-based event decider results', async () => {
     // Arrange
-    const decider = async ({ command }) => {
+    const decider = async ({ command }: { command: CounterCommand }) => {
       return Promise.resolve({
         type: 'created' as const,
         id: command.id,
@@ -144,7 +152,7 @@ describe('[command] init event function', () => {
   test('should pass deps to event decider function', async () => {
     // Arrange
     const testDeps = { externalService: { getValue: () => 77 } }
-    const decider = async ({ command, deps }) => {
+    const decider = async ({ command, deps }: { command: CounterCommand; deps: any }) => {
       return Promise.resolve({
         type: 'created' as const,
         id: command.id,
