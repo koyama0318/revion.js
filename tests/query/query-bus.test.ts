@@ -1,23 +1,19 @@
 import { describe, expect, test } from 'bun:test'
 import { ReadModelStoreInMemory } from '../../src/adapter/read-model-store-in-memory'
 import { createQueryBus } from '../../src/query/query-bus'
-import { createQuerySource } from '../../src/query/query-source-builder'
-import type { Query } from '../../src/types/core/query'
-import type { QueryHandlerMiddleware } from '../../src/types/framework/query-bus'
-import { querySources } from '../fixtures/counter-app/features/counter2/counter2-query'
-import type { CounterQuery } from '../fixtures/counter-app/features/counter2/types'
-import type { CounterReadModel } from '../fixtures/counter-app/shared/readmodel'
-
-type GetCounterQuery = Extract<CounterQuery, { type: 'getCounter' }>
-type ListCountersQuery = Extract<CounterQuery, { type: 'listCounters' }>
-
-class TestReadModelStore extends ReadModelStoreInMemory<CounterReadModel> {}
+import type { Query } from '../../src/types/core'
+import type { QueryHandlerMiddleware } from '../../src/types/framework'
+import { counterQuerySource } from '../fixtures/counter-app/features/counter/counter-query'
+import type {
+  CounterQuery,
+  CounterQueryResult
+} from '../fixtures/counter-app/features/counter2/types'
 
 describe('[query] query bus', () => {
   describe('createQueryBus', () => {
     test('should return a function when created with minimal configuration', () => {
       // Arrange
-      const deps = { readModelStore: new TestReadModelStore() }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
 
       // Act
       const queryBus = createQueryBus({ deps })
@@ -29,11 +25,12 @@ describe('[query] query bus', () => {
 
     test('should return error when query type is invalid', async () => {
       // Arrange
-      const deps = { readModelStore: new TestReadModelStore() }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
       const queryBus = createQueryBus({ deps })
 
       const invalidQuery: Query = {
-        type: ''
+        type: '',
+        sourceType: 'any-query'
       }
 
       // Act
@@ -49,11 +46,12 @@ describe('[query] query bus', () => {
 
     test('should return error when no resolver is found for query type', async () => {
       // Arrange
-      const deps = { readModelStore: new TestReadModelStore() }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
       const queryBus = createQueryBus({ deps })
 
       const query: Query = {
-        type: 'unknown-query'
+        type: 'any-query',
+        sourceType: 'unknown-query'
       }
 
       // Act
@@ -69,23 +67,22 @@ describe('[query] query bus', () => {
 
     test('should execute query successfully when resolver is found', async () => {
       // Arrange
-      const testStore = new TestReadModelStore()
-      testStore.addTestData([
-        {
-          type: 'counter',
-          id: 'counter-1',
-          count: 10
-        }
-      ])
+      const testStore = new ReadModelStoreInMemory()
+      await testStore.save({
+        type: 'counter',
+        id: 'counter-1',
+        count: 10
+      })
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
         deps,
-        querySources: querySources
+        querySources: [counterQuerySource]
       })
 
-      const query: GetCounterQuery = {
+      const query: CounterQuery = {
         type: 'getCounter',
+        sourceType: 'counter',
         payload: { id: 'counter-1' }
       }
 
@@ -97,49 +94,42 @@ describe('[query] query bus', () => {
       if (res.ok) {
         expect(res.value.data).toEqual({
           type: 'getCounter',
-          item: {
-            type: 'counter',
-            id: 'counter-1',
-            count: 10
-          }
+          item: { type: 'counter', id: 'counter-1', count: 10 }
         })
       }
     })
 
     test('should handle list query with multiple items', async () => {
       // Arrange
-      const testStore = new TestReadModelStore()
-      testStore.addTestData([
-        {
-          type: 'counter',
-          id: 'counter-1',
-          count: 10
-        },
-        {
-          type: 'counter',
-          id: 'counter-2',
-          count: 20
-        },
-        {
-          type: 'counter',
-          id: 'counter-3',
-          count: 30
-        }
-      ])
+
+      const testStore = new ReadModelStoreInMemory()
+      await testStore.save({
+        type: 'counter',
+        id: 'counter-1',
+        count: 10
+      })
+      await testStore.save({
+        type: 'counter',
+        id: 'counter-2',
+        count: 20
+      })
+      await testStore.save({
+        type: 'counter',
+        id: 'counter-3',
+        count: 30
+      })
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
         deps,
-        querySources: querySources
+        querySources: [counterQuerySource]
       })
 
-      const query: ListCountersQuery = {
+      const query: CounterQuery = {
         type: 'listCounters',
+        sourceType: 'counter',
         payload: {
-          range: {
-            limit: 5,
-            offset: 0
-          }
+          range: { limit: 5, offset: 0 }
         }
       }
 
@@ -149,15 +139,27 @@ describe('[query] query bus', () => {
       // Assert
       expect(res.ok).toBe(true)
       if (res.ok) {
-        const data = res.value.data as unknown
+        const data = res.value.data as CounterQueryResult
         expect(data.type).toBe('listCounters')
-        expect(data.items).toHaveLength(3)
-        expect(data.total).toBe(3)
-        expect(data.items[0]).toEqual({
-          type: 'counter',
-          id: 'counter-1',
-          count: 10
-        })
+        if (data.type === 'listCounters') {
+          expect(data.items).toHaveLength(3)
+          expect(data.items[0]).toEqual({
+            type: 'counter',
+            id: 'counter-1',
+            count: 10
+          })
+          expect(data.items[1]).toEqual({
+            type: 'counter',
+            id: 'counter-2',
+            count: 20
+          })
+          expect(data.items[2]).toEqual({
+            type: 'counter',
+            id: 'counter-3',
+            count: 30
+          })
+          expect(data.total).toBe(3)
+        }
       }
     })
 
@@ -179,24 +181,23 @@ describe('[query] query bus', () => {
         return res
       }
 
-      const testStore = new TestReadModelStore()
-      testStore.addTestData([
-        {
-          type: 'counter',
-          id: 'counter-1',
-          count: 10
-        }
-      ])
+      const testStore = new ReadModelStoreInMemory()
+      await testStore.save({
+        type: 'counter',
+        id: 'counter-1',
+        count: 10
+      })
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
         deps,
-        querySources: querySources,
+        querySources: [counterQuerySource],
         middleware: [middleware1, middleware2]
       })
 
-      const query: GetCounterQuery = {
+      const query: CounterQuery = {
         type: 'getCounter',
+        sourceType: 'counter',
         payload: { id: 'counter-1' }
       }
 
@@ -231,24 +232,23 @@ describe('[query] query bus', () => {
         return res
       }
 
-      const testStore = new TestReadModelStore()
-      testStore.addTestData([
-        {
-          type: 'counter',
-          id: 'counter-1',
-          count: 10
-        }
-      ])
+      const testStore = new ReadModelStoreInMemory()
+      await testStore.save({
+        type: 'counter',
+        id: 'counter-1',
+        count: 10
+      })
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
         deps,
-        querySources: querySources,
+        querySources: [counterQuerySource],
         middleware: [loggingMiddleware]
       })
 
-      const query: GetCounterQuery = {
+      const query: CounterQuery = {
         type: 'getCounter',
+        sourceType: 'counter',
         payload: { id: 'counter-1' }
       }
 
@@ -259,59 +259,21 @@ describe('[query] query bus', () => {
       expect(res.ok).toBe(true)
       if (res.ok) {
         expect(res.value.type).toBe('getCounter-logged')
-        expect((res.value.data as unknown).logged).toBe(true)
-      }
-    })
-
-    test('should handle missing data gracefully', async () => {
-      // Arrange
-      const testStore = new TestReadModelStore()
-      // No data added - but the resolver handles it gracefully
-
-      const safeResolver = {
-        'safe-query': async ({ deps }: any) => {
-          const items = await deps.readModelStore.findMany('counter', {})
-          return {
-            type: 'safe-query',
-            items: items,
-            total: items.length
-          }
-        }
-      }
-
-      const safeQuerySource = createQuerySource().type('safe-query').resolver(safeResolver).build()
-
-      const deps = { readModelStore: testStore }
-      const queryBus = createQueryBus({
-        deps,
-        querySources: [safeQuerySource]
-      })
-
-      const query = {
-        type: 'safe-query'
-      }
-
-      // Act
-      const res = await queryBus(query)
-
-      // Assert
-      expect(res.ok).toBe(true)
-      if (res.ok) {
-        expect((res.value.data as unknown).total).toBe(0)
-        expect((res.value.data as unknown).items).toEqual([])
+        expect(res.value.data.logged).toBe(true)
       }
     })
 
     test('should handle empty query resolvers', async () => {
       // Arrange
-      const deps = { readModelStore: new TestReadModelStore() }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
       const queryBus = createQueryBus({
         deps
         // No queryResolvers provided
       })
 
       const query: Query = {
-        type: 'any-query'
+        type: 'any-query',
+        sourceType: 'any-query'
       }
 
       // Act

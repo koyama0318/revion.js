@@ -3,6 +3,7 @@ import type { AsyncResult } from '../utils/result'
 
 export type Query = {
   readonly type: string
+  readonly sourceType: string
 }
 
 export type QueryResultData = Record<string, unknown>

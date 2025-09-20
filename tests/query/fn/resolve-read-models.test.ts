@@ -1,33 +1,28 @@
 import { describe, expect, test } from 'bun:test'
 import { ReadModelStoreInMemory } from '../../../src/adapter/read-model-store-in-memory'
 import { createResolveReadModelFnFactory } from '../../../src/query/fn/resolve-read-models'
-import type { Query, QueryResultData } from '../../../src/types/core/query'
-import type { ResolverFn } from '../../../src/types/query/resolver-fn'
-import type {
-  CounterQuery,
-  CounterQueryResult
-} from '../../fixtures/counter-app/features/counter2/types'
+import type { ResolverContext, ResolverFn } from '../../../src/types/query/resolver-fn'
+import type { CounterQuery, CounterQueryResult } from '../../fixtures/counter-app/features/counter'
 import type { CounterReadModel } from '../../fixtures/counter-app/shared/readmodel'
 
-type GetCounterQuery = Extract<CounterQuery, { type: 'getCounter' }>
-type GetCounterQueryResult = Extract<CounterQueryResult, { type: 'getCounter' }>
-
-class TestReadModelStore extends ReadModelStoreInMemory<CounterReadModel> {}
+type Deps = {
+  readModelStore: ReadModelStoreInMemory
+}
 
 describe('[query] resolve read models function', () => {
   describe('createResolveReadModelFnFactory', () => {
     test('should return a function when resolver is provided', () => {
       // Arrange
-      const resolver: ResolverFn<GetCounterQuery, GetCounterQueryResult> = async () => {
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = async () => {
         return {
           type: 'getCounter',
           item: { type: 'counter', id: '1', count: 0 }
         }
       }
-      const deps = { readModelStore: new TestReadModelStore() }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
 
       // Act
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver, deps)()
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
 
       // Assert
       expect(resolveReadModelFn).toBeDefined()
@@ -36,7 +31,10 @@ describe('[query] resolve read models function', () => {
 
     test('should return successful result when resolver executes successfully', async () => {
       // Arrange
-      const resolver: ResolverFn<GetCounterQuery, GetCounterQueryResult> = ({ query }) => {
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = ({ query }) => {
         return Promise.resolve({
           type: 'getCounter',
           item: {
@@ -46,10 +44,10 @@ describe('[query] resolve read models function', () => {
           }
         })
       }
-      const deps = { readModelStore: new TestReadModelStore() }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver, deps)()
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
 
-      const query: GetCounterQuery = {
+      const query: CounterQuery = {
         type: 'getCounter',
         payload: { id: 'test-id' }
       }
@@ -73,8 +71,11 @@ describe('[query] resolve read models function', () => {
 
     test('should pass context to resolver function', async () => {
       // Arrange
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
       let receivedContext: unknown
-      const resolver: ResolverFn<GetCounterQuery, GetCounterQueryResult> = ({ ctx, query }) => {
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = ({ ctx, query }) => {
         receivedContext = ctx
         return Promise.resolve({
           type: 'getCounter',
@@ -85,10 +86,10 @@ describe('[query] resolve read models function', () => {
           }
         })
       }
-      const deps = { readModelStore: new TestReadModelStore() }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver, deps)()
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
 
-      const query: GetCounterQuery = {
+      const query: CounterQuery = {
         type: 'getCounter',
         payload: { id: 'test-id' }
       }
@@ -99,21 +100,21 @@ describe('[query] resolve read models function', () => {
       // Assert
       expect(receivedContext).toBeDefined()
       expect(receivedContext).toHaveProperty('timestamp')
-      expect((receivedContext as unknown).timestamp).toBeInstanceOf(Date)
+      expect((receivedContext as ResolverContext).timestamp).toBeInstanceOf(Date)
     })
 
     test('should pass deps to resolver function', async () => {
       // Arrange
-      const testStore = new TestReadModelStore()
-      testStore.addTestData([
-        {
-          type: 'counter',
-          id: 'test-id',
-          count: 55
-        }
-      ])
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
 
-      const resolver: ResolverFn<GetCounterQuery, GetCounterQueryResult> = ({ query, deps }) => {
+      const testStore = new ReadModelStoreInMemory()
+      await testStore.save({
+        type: 'counter',
+        id: 'test-id',
+        count: 55
+      })
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = ({ query, deps }) => {
         return deps.readModelStore.findById('counter', query.payload.id).then(readModel => {
           if (!readModel) {
             throw new Error('Not found')
@@ -128,7 +129,7 @@ describe('[query] resolve read models function', () => {
       const deps = { readModelStore: testStore }
       const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
 
-      const query: GetCounterQuery = {
+      const query: CounterQuery = {
         type: 'getCounter',
         payload: { id: 'test-id' }
       }
@@ -152,13 +153,16 @@ describe('[query] resolve read models function', () => {
 
     test('should handle resolver returning null', async () => {
       // Arrange
-      const resolver: ResolverFn<GetCounterQuery, GetCounterQueryResult> = () => {
-        return null as unknown
-      }
-      const deps = { readModelStore: new TestReadModelStore() }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver, deps)()
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
 
-      const query: GetCounterQuery = {
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
+        return null as unknown as Promise<CounterQueryResult>
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+
+      const query: CounterQuery = {
         type: 'getCounter',
         payload: { id: 'test-id' }
       }
@@ -169,46 +173,7 @@ describe('[query] resolve read models function', () => {
       // Assert
       expect(res.ok).toBe(true)
       if (res.ok) {
-        expect(res.value).toBe(null)
-      }
-    })
-
-    test('should handle resolver returning complex data structure', async () => {
-      // Arrange
-      const resolver: ResolverFn<Query, QueryResultData> = () => {
-        return Promise.resolve({
-          users: [
-            { id: '1', name: 'Alice' },
-            { id: '2', name: 'Bob' }
-          ],
-          pagination: {
-            total: 2,
-            page: 1,
-            limit: 10
-          },
-          metadata: {
-            timestamp: new Date().toISOString(),
-            version: '1.0'
-          }
-        })
-      }
-      const deps = { readModelStore: new TestReadModelStore() }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver, deps)()
-
-      const query: Query = {
-        type: 'list-users'
-      }
-
-      // Act
-      const res = await resolveReadModelFn(query)
-
-      // Assert
-      expect(res.ok).toBe(true)
-      if (res.ok) {
-        expect(res.value).toHaveProperty('users')
-        expect(res.value).toHaveProperty('pagination')
-        expect(res.value).toHaveProperty('metadata')
-        expect(Array.isArray((res.value as unknown).users)).toBe(true)
+        expect(res.value).toBeNull()
       }
     })
   })

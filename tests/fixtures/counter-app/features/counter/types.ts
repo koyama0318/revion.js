@@ -20,3 +20,33 @@ export type CounterEvent =
   | { type: 'decremented'; id: CounterId }
 
 export type CounterReadModels = CounterReadModel | AchievementReadModel
+
+export type CounterQuery =
+  | {
+      type: 'listCounters'
+      sourceType: 'counter'
+      payload: {
+        range: {
+          limit: number
+          offset: number
+        }
+      }
+    }
+  | {
+      type: 'getCounter'
+      sourceType: 'counter'
+      payload: {
+        id: string
+      }
+    }
+
+export type CounterQueryResult =
+  | {
+      type: 'listCounters'
+      items: CounterReadModel[]
+      total: number
+    }
+  | {
+      type: 'getCounter'
+      item: CounterReadModel
+    }
