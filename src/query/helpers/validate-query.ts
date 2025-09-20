@@ -11,5 +11,13 @@ export function validateQuery(query: Query): Result<void, AppError> {
     })
   }
 
+  const isSourceTypeNotEmpty = query.sourceType && query.sourceType !== ''
+  if (!isSourceTypeNotEmpty) {
+    return err({
+      code: 'INVALID_QUERY_SOURCE_TYPE',
+      message: 'query source type is not valid'
+    })
+  }
+
   return ok(undefined)
 }

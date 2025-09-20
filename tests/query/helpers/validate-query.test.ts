@@ -7,7 +7,8 @@ describe('[query] validate query helper', () => {
     test('returns success when query has valid type', () => {
       // Arrange
       const query: Query = {
-        type: 'get-user'
+        type: 'get-user',
+        sourceType: 'user'
       }
 
       // Act
@@ -21,6 +22,7 @@ describe('[query] validate query helper', () => {
       // Arrange
       const query = {
         type: 'get-user',
+        sourceType: 'user',
         payload: { id: '123' }
       } as Query
 
@@ -34,7 +36,8 @@ describe('[query] validate query helper', () => {
     test('returns error when query type is empty string', () => {
       // Arrange
       const query: Query = {
-        type: ''
+        type: '',
+        sourceType: 'user'
       }
 
       // Act
@@ -51,7 +54,8 @@ describe('[query] validate query helper', () => {
     test('returns error when query type is undefined', () => {
       // Arrange
       const query = {
-        type: undefined
+        type: undefined,
+        sourceType: 'user'
       } as unknown as Query
 
       // Act
@@ -65,10 +69,29 @@ describe('[query] validate query helper', () => {
       }
     })
 
+    test('returns error when query source type is empty string', () => {
+      // Arrange
+      const query = {
+        type: 'get-user',
+        sourceType: ''
+      } as unknown as Query
+
+      // Act
+      const res = validateQuery(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY_SOURCE_TYPE')
+        expect(res.error.message).toBe('query source type is not valid')
+      }
+    })
+
     test('returns error when query type is null', () => {
       // Arrange
       const query = {
-        type: null
+        type: null,
+        sourceType: 'user'
       } as unknown as Query
 
       // Act
@@ -85,7 +108,8 @@ describe('[query] validate query helper', () => {
     test('returns success when query type contains spaces', () => {
       // Arrange
       const query: Query = {
-        type: 'get user by id'
+        type: 'get user by id',
+        sourceType: 'user'
       }
 
       // Act
@@ -98,7 +122,8 @@ describe('[query] validate query helper', () => {
     test('returns success when query type contains special characters', () => {
       // Arrange
       const query: Query = {
-        type: 'get-user_by-id.v2'
+        type: 'get-user_by-id.v2',
+        sourceType: 'user'
       }
 
       // Act
