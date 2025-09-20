@@ -26,11 +26,11 @@ export function createQueryBus({
     const validated = validateQuery(query)
     if (!validated.ok) return validated
 
-    const handler = handlers[query.type]
+    const handler = handlers[query.sourceType]
     if (!handler) {
       return err({
         code: 'QUERY_RESOLVER_NOT_FOUND',
-        message: `Handler for type ${query.type} not found`
+        message: `Handler for type ${query.sourceType} not found`
       })
     }
 

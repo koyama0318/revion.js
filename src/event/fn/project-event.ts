@@ -23,13 +23,6 @@ export function createProjectEventFnFactory<E extends DomainEvent>(
           message: `Event type must be string, got: ${typeof eventType}`
         })
       }
-      // 型安全のため eventType を keyof ProjectionFn<E, ReadModel> として扱う
-      if (!(eventType in projection)) {
-        return err({
-          code: 'EVENT_TYPE_NOT_FOUND',
-          message: `Event type ${eventType} not found`
-        })
-      }
       const definitions = projection[eventType as keyof typeof projection]
       if (!definitions) {
         return err({

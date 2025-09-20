@@ -67,7 +67,7 @@ export interface IEventReactorBuilder<
     transitionMap: ProjectionMap<E, RM>
   ): IEventReactorBuilder<'complete', E, C, RM>
 
-  build(this: IEventReactorBuilder<'complete', E, C, RM>): EventReactor<C, E, RM>
+  build(this: IEventReactorBuilder<'complete', E, C, RM>): EventReactor<E, C, RM>
 }
 
 /**
@@ -233,7 +233,7 @@ export class EventReactorBuilder<
     return new EventReactorBuilder<NS, E, C, RM>(newValue)
   }
 
-  build(this: EventReactorBuilder<'complete', E, C, RM>): EventReactor<C, E, RM> {
+  build(this: EventReactorBuilder<'complete', E, C, RM>): EventReactor<E, C, RM> {
     if (!isRequiredBuilderValue(this.value)) {
       throw new Error('EventReactor is not ready to build. Missing required properties.')
     }

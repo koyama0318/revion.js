@@ -2,7 +2,7 @@ import type { Command, DomainEvent, ReadModel } from '../core'
 import type { PolicyFn } from './policy-fn'
 import type { ProjectionFn } from './projection-fn'
 
-export type EventReactor<C extends Command, E extends DomainEvent, RM extends ReadModel> = {
+export type EventReactor<E extends DomainEvent, C extends Command, RM extends ReadModel> = {
   type: C['id']['type']
   policy: PolicyFn<E, C>
   projection: ProjectionFn<E, RM>
