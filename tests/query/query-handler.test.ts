@@ -89,9 +89,36 @@ describe('[query] query handler', () => {
     })
 
     describe('error handling', () => {
-      test('should handle resolver function errors', async () => {
+      test('should handle resolver function errors when item not found', async () => {
         // Arrange
         const store = new ReadModelStoreInMemory()
+        const deps = { readModelStore: store }
+        const handlers = createQueryHandlers(deps, [counterQuerySource])
+
+        const query: CounterQuery = {
+          type: 'getCounter',
+          sourceType: 'counter',
+          payload: { id: 'nonexistent-id' }
+        }
+
+        // Act
+        const res = await handlers['counter'](query)
+
+        // Assert
+        expect(res.ok).toBe(false)
+        if (!res.ok) {
+          expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+        }
+      })
+
+      test('should handle store errors during findById operation', async () => {
+        // Arrange
+        const store = new ReadModelStoreInMemory()
+        // Make findById throw error
+        store.findById = async () => {
+          throw new Error('Database connection lost')
+        }
+
         const deps = { readModelStore: store }
         const handlers = createQueryHandlers(deps, [counterQuerySource])
 
@@ -108,27 +135,25 @@ describe('[query] query handler', () => {
         expect(res.ok).toBe(false)
         if (!res.ok) {
           expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+          expect(res.error.message).toContain('Database connection lost')
         }
       })
 
-      test('should handle store errors', async () => {
+      test('should handle store errors during findMany operation', async () => {
         // Arrange
-        const failingStore = {
-          findById: async () => {
-            throw new Error('Database error')
-          },
-          findMany: async () => {
-            throw new Error('Database error')
-          },
-          save: async () => {},
-          delete: async () => {}
+        const store = new ReadModelStoreInMemory()
+        // Make findMany throw error
+        store.findMany = async () => {
+          throw new Error('Query timeout')
         }
-        const handlers = createQueryHandlers({ readModelStore: failingStore }, [counterQuerySource])
+
+        const deps = { readModelStore: store }
+        const handlers = createQueryHandlers(deps, [counterQuerySource])
 
         const query: CounterQuery = {
-          type: 'getCounter',
+          type: 'listCounters',
           sourceType: 'counter',
-          payload: { id: 'test-1' }
+          payload: { range: { limit: 10, offset: 0 } }
         }
 
         // Act
@@ -138,7 +163,29 @@ describe('[query] query handler', () => {
         expect(res.ok).toBe(false)
         if (!res.ok) {
           expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
-          expect(res.error.message).toContain('Database error')
+          expect(res.error.message).toContain('Query timeout')
+        }
+      })
+
+      test('should handle invalid query types', async () => {
+        // Arrange
+        const store = new ReadModelStoreInMemory()
+        const deps = { readModelStore: store }
+        const handlers = createQueryHandlers(deps, [counterQuerySource])
+
+        const query = {
+          type: 'invalidQuery',
+          sourceType: 'counter',
+          payload: { id: 'test-1' }
+        } as unknown as CounterQuery
+
+        // Act
+        const res = await handlers['counter'](query)
+
+        // Assert
+        expect(res.ok).toBe(false)
+        if (!res.ok) {
+          expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
         }
       })
     })

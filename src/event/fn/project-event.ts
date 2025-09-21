@@ -1,86 +1,57 @@
 import { produce } from 'immer'
-import type { ReadModelStore } from '../../types/adapter'
 import type { DomainEvent, ExtendedDomainEvent, ReadModel } from '../../types/core'
 import type { ProjectionCtx, ProjectionFn } from '../../types/event'
 import type { AppError, AsyncResult } from '../../types/utils'
-import { err, ok, toAsyncResult } from '../../utils/result'
+import { err, ok } from '../../utils/result'
 
 export type ProjectEventFn<E extends DomainEvent> = (
-  event: ExtendedDomainEvent<E>
-) => AsyncResult<void, AppError>
+  event: ExtendedDomainEvent<E>,
+  readModels: Record<string, ReadModel>
+) => AsyncResult<Record<string, ReadModel>, AppError>
 
 export function createProjectEventFnFactory<E extends DomainEvent>(
   projection: ProjectionFn<E, ReadModel>
-): (store: ReadModelStore) => ProjectEventFn<E> {
-  return (store: ReadModelStore) => {
-    return async (event: ExtendedDomainEvent<E>): AsyncResult<void, AppError> => {
-      const eventType = event.type
-
-      // Type-safe event type validation
-      if (typeof eventType !== 'string') {
-        return err({
-          code: 'INVALID_EVENT_TYPE',
-          message: `Event type must be string, got: ${typeof eventType}`
-        })
-      }
-      const definitions = projection[eventType as keyof typeof projection]
-      if (!definitions) {
-        return err({
-          code: 'EVENT_TYPE_NOT_FOUND',
-          message: `Event type ${eventType} not found`
-        })
+): () => ProjectEventFn<E> {
+  return () => {
+    return async (
+      event: ExtendedDomainEvent<E>,
+      readModels: Record<string, ReadModel>
+    ): AsyncResult<Record<string, ReadModel>, AppError> => {
+      const ctx: ProjectionCtx = {
+        timestamp: event.timestamp
       }
 
-      for (const [type, definition] of Object.entries(definitions)) {
-        if (!definition || typeof definition !== 'function') {
-          continue
-        }
+      const updatedDict: Record<string, ReadModel> = {}
 
-        const ctx: ProjectionCtx = {
-          timestamp: event.timestamp
-        }
+      if (!readModels || typeof readModels !== 'object') {
+        return ok(updatedDict)
+      }
 
-        const existingReadModel = await toAsyncResult(() => store.findById(type, event.id.value))
-        const readModelToUpdate =
-          existingReadModel.ok && existingReadModel.value ? existingReadModel.value : {}
-
+      for (const [key, model] of Object.entries(readModels)) {
         try {
-          const updatedReadModel = produce(readModelToUpdate, draft => {
-            const result = definition({
+          const updatedModel = produce(model, draft => {
+            const result = projection({
               ctx,
-              event: event,
-              readModel: draft
+              event: event as unknown as E,
+              // Draft での in-place mutate / 置換の両方を許容
+              readModel: draft as unknown as ReadModel
             })
             if (result) {
               return result
             }
           })
 
-          // Save the result if it exists and has content
-          if (
-            updatedReadModel &&
-            typeof updatedReadModel === 'object' &&
-            Object.keys(updatedReadModel).length > 0
-          ) {
-            const saved = await toAsyncResult(() => store.save(updatedReadModel as ReadModel))
-            if (!saved.ok) {
-              return err({
-                code: 'SAVE_VIEW_FAILED',
-                message: `SavereadModel failed: ${type} event: ${event.type} v${event.version}`,
-                cause: saved.error
-              })
-            }
-          }
+          updatedDict[key] = updatedModel as ReadModel
         } catch (error) {
           return err({
             code: 'PROJECTION_EXECUTION_FAILED',
-            message: `Projection execution failed: ${type} event: ${event.type} v${event.version}`,
+            message: `Projection execution failed: ${model.type} event: ${String(event.type)} v${event.version}`,
             cause: error
           })
         }
       }
 
-      return ok(undefined)
+      return ok(updatedDict)
     }
   }
 }

@@ -285,5 +285,60 @@ describe('[query] query bus', () => {
         expect(res.error.code).toBe('QUERY_RESOLVER_NOT_FOUND')
       }
     })
+
+    test('should handle query with empty payload', async () => {
+      // Arrange
+      const testStore = new ReadModelStoreInMemory()
+      await testStore.save({
+        type: 'counter',
+        id: 'counter-1',
+        count: 10
+      })
+
+      const deps = { readModelStore: testStore }
+      const queryBus = createQueryBus({
+        deps,
+        querySources: [counterQuerySource]
+      })
+
+      const query: Query = {
+        type: 'getCounter',
+        sourceType: 'counter'
+        // No payload
+      }
+
+      // Act
+      const res = await queryBus(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+      }
+    })
+
+    test('should handle middleware that throws error', async () => {
+      // Arrange
+      const errorMiddleware: QueryHandlerMiddleware = async () => {
+        throw new Error('Middleware error')
+      }
+
+      const testStore = new ReadModelStoreInMemory()
+      const deps = { readModelStore: testStore }
+      const queryBus = createQueryBus({
+        deps,
+        querySources: [counterQuerySource],
+        middleware: [errorMiddleware]
+      })
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        sourceType: 'counter',
+        payload: { id: 'counter-1' }
+      }
+
+      // Act & Assert
+      await expect(queryBus(query)).rejects.toThrow('Middleware error')
+    })
   })
 })

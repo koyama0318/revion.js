@@ -1,4 +1,3 @@
-import { produce } from 'immer'
 import type {
   Aggregate,
   EventDecider,
@@ -9,7 +8,9 @@ import type {
   ReducerMap
 } from '../types/command'
 import type { Command, DomainEvent, State } from '../types/core'
-import { createAcceptsCommand, createAcceptsEvent } from './helpers/create-accepts'
+import { mapToAcceptsCommandFn, mapToAcceptsEventFn } from './mapper/map-to-accepts-fn'
+import { mapToEventDeciderFn } from './mapper/map-to-event-decider-fn'
+import { mapToReducerFn } from './mapper/map-to-reducer-fn'
 
 /**
  * Internal type representing the accumulated values in the builder
@@ -93,7 +94,7 @@ function isRequiredBuilderValue<
 function createEventDeciderFn<S extends State, C extends Command, E extends DomainEvent, D>(
   decider: EventDecider<S, C, E, D> | EventDecider<S, C, E, EventDeciderMap<S, C>>
 ): EventDeciderFn<S, C, E, D> {
-  return fromEventDecider(decider as EventDecider<S, C, E, D>)
+  return mapToEventDeciderFn(decider as EventDecider<S, C, E, D>)
 }
 
 /**
@@ -102,68 +103,7 @@ function createEventDeciderFn<S extends State, C extends Command, E extends Doma
 function createReducerFn<S extends State, E extends DomainEvent>(
   reducer: Reducer<S, E> | Reducer<S, E, ReducerMap<S, E>>
 ): ReducerFn<S, E> {
-  return fromReducer(reducer as Reducer<S, E>)
-}
-
-/**
- * Converts EventDecider object to EventDeciderFn
- */
-export function fromEventDecider<S extends State, C extends Command, E extends DomainEvent, D>(
-  deciders: EventDecider<S, C, E, D>
-): EventDeciderFn<S, C, E, D> {
-  return ({ ctx, state, command, deps }) => {
-    const deciderMap = deciders as Record<C['type'], EventDeciderFn<S, C, E, D>>
-    const decider = deciderMap[command.type as C['type']]
-    if (!decider) {
-      throw new Error(`No decider found for type: ${String(command.type)}`)
-    }
-
-    return decider({
-      ctx,
-      state,
-      command: command as Extract<C, { type: typeof command.type }>,
-      deps
-    })
-  }
-}
-
-/**
- * Converts Reducer object to ReducerFn with Immer integration
- */
-export function fromReducer<S extends State, E extends DomainEvent>(
-  reducers: Reducer<S, E>
-): ReducerFn<S, E> {
-  return ({ ctx, state, event }) => {
-    const reducer = reducers[event.type as keyof typeof reducers]
-    if (!reducer) {
-      throw new Error(`No reducer found for event type: ${String(event.type)}`)
-    }
-
-    // Holds the new typed state if returned by the reducer
-    let updatedTypedState = null
-
-    const updatedState = produce(state, draft => {
-      // The reducer mutates the draft in place. If it returns a value, store it as the typed state.
-      const res = reducer({
-        ctx,
-        state: draft,
-        event: event as Extract<E, { type: typeof event.type }>
-      })
-      if (res !== undefined) {
-        // Validate that the returned value is a proper state object
-        if (res === null || typeof res !== 'object') {
-          throw new Error(
-            `Reducer for event type "${String(event.type)}" returned invalid value: ${typeof res}. ` +
-              'Reducers must return either undefined (to use mutated draft) or a valid state object.'
-          )
-        }
-        updatedTypedState = res
-      }
-    })
-
-    // reducer mutates draft in place, so result is always the new state
-    return updatedTypedState ?? updatedState
-  }
+  return mapToReducerFn(reducer as Reducer<S, E>)
 }
 
 export class AggregateBuilder<
@@ -235,10 +175,10 @@ export class AggregateBuilder<
     }
 
     const deciderMap: EventDeciderMap<S, C> = this.value.deciderMap ?? ({} as EventDeciderMap<S, C>)
-    const acceptsCommand = createAcceptsCommand<S, C>(deciderMap)
+    const acceptsCommand = mapToAcceptsCommandFn<S, C>(deciderMap)
 
     const reducerMap: ReducerMap<S, E> = this.value.reducerMap ?? ({} as ReducerMap<S, E>)
-    const acceptsEvent = createAcceptsEvent<S, E>(reducerMap)
+    const acceptsEvent = mapToAcceptsEventFn<S, E>(reducerMap)
 
     return {
       type: this.value.type,

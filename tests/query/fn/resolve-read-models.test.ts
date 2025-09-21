@@ -176,5 +176,85 @@ describe('[query] resolve read models function', () => {
         expect(res.value).toBeNull()
       }
     })
+
+    test('should handle resolver throwing error', async () => {
+      // Arrange
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
+        throw new Error('Resolver error')
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        payload: { id: 'test-id' }
+      }
+
+      // Act
+      const res = await resolveReadModelFn(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+        expect(res.error.message).toContain('Resolver error')
+      }
+    })
+
+    test('should handle resolver rejecting promise', async () => {
+      // Arrange
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
+        return Promise.reject(new Error('Async resolver error'))
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        payload: { id: 'test-id' }
+      }
+
+      // Act
+      const res = await resolveReadModelFn(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+        expect(res.error.message).toContain('Async resolver error')
+      }
+    })
+
+    test('should handle non-Error exceptions', async () => {
+      // Arrange
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
+        throw 'String error'
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        payload: { id: 'test-id' }
+      }
+
+      // Act
+      const res = await resolveReadModelFn(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+      }
+    })
   })
 })

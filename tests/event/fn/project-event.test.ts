@@ -4,90 +4,22 @@ import type { QueryOption, ReadModelStore } from '../../../src/types/adapter'
 import type { AggregateId, ExtendedDomainEvent, ReadModel } from '../../../src/types/core'
 import type { Projection, ProjectionMap } from '../../../src/types/event'
 
-// Test types
 type TestEvent =
   | { type: 'created'; id: AggregateId<'test'>; payload: { name: string } }
   | { type: 'updated'; id: AggregateId<'test'>; payload: { name: string } }
   | { type: 'deleted'; id: AggregateId<'test'> }
 
-type TestReadModel = ReadModel & {
-  type: 'test'
-  id: string
-  name: string
-}
+type TestReadModel = { type: 'test'; id: string; name: string }
 
-const testId = (id: string): AggregateId<'test'> => ({ type: 'test', value: id })
-
-const createTestEvent = (
-  type: TestEvent['type'],
-  id: string,
-  payload?: any
-): ExtendedDomainEvent<TestEvent> =>
-  ({
-    type,
-    id: testId(id),
-    payload,
-    aggregateId: testId(id),
-    version: 1,
-    timestamp: new Date()
-  }) as ExtendedDomainEvent<TestEvent>
-
-// Mock database classes for testing error scenarios
 class MockReadModelStore implements ReadModelStore {
   async findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
     return []
   }
-
   async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
-    return {
-      type: 'test',
-      id: '123',
-      name: 'existing'
-    } as unknown as T
+    return { type: 'test', id: '123', name: 'existing' } as unknown as T
   }
-
-  async save<T extends ReadModel>(_model: T): Promise<void> {
-    // Success - do nothing
-  }
-
-  async delete<T extends ReadModel>(_model: T): Promise<void> {
-    // Success - do nothing
-  }
-}
-
-class MockReadModelStoreWithErrors implements ReadModelStore {
-  constructor(
-    private shouldFailOnGet = false,
-    private shouldFailOnSave = false,
-    private shouldFailOnDelete = false
-  ) {}
-
-  async findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
-    return []
-  }
-
-  async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
-    if (this.shouldFailOnGet) {
-      throw new Error('Get by ID failed')
-    }
-    return {
-      type: 'test',
-      id: '123',
-      name: 'existing'
-    } as unknown as T
-  }
-
-  async save<T extends ReadModel>(_model: T): Promise<void> {
-    if (this.shouldFailOnSave) {
-      throw new Error('Save operation failed')
-    }
-  }
-
-  async delete<T extends ReadModel>(_model: T): Promise<void> {
-    if (this.shouldFailOnDelete) {
-      throw new Error('Delete operation failed')
-    }
-  }
+  async save<T extends ReadModel>(_model: T): Promise<void> {}
+  async delete<T extends ReadModel>(_model: T): Promise<void> {}
 }
 
 describe('[event] project event function', () => {
@@ -100,16 +32,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStoreWithErrors()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const invalidEvent = {
-        ...createTestEvent('created', '123'),
-        type: 123 // Invalid type
+      const invalidEvent: ExtendedDomainEvent<TestEvent> = {
+        type: 123,
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
       } as any
 
       // Act
-      const result = await projectFn(invalidEvent)
+      const result = await projectFn(invalidEvent, {})
 
       // Assert
       expect(result.ok).toBe(false)
@@ -127,13 +61,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStoreWithErrors()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('updated', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'updated',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(false)
@@ -155,13 +94,18 @@ describe('[event] project event function', () => {
         }
       } as any
 
-      const db = new MockReadModelStoreWithErrors()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('created', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'created',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(true)
@@ -182,13 +126,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStoreWithErrors(false, true) // Fail on save
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('created', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'created',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(false)
@@ -219,13 +168,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStore()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('updated', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'updated',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(true)
@@ -252,13 +206,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStoreWithErrors(false, true) // Success on get, fail on save
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('updated', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'updated',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(false)
@@ -289,13 +248,17 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStore()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('deleted', '123')
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'deleted',
+        id: { type: 'test', value: '123' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(true) // Should succeed as nothing is saved
@@ -324,13 +287,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStore()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('created', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'created',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(false)
@@ -348,13 +316,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStoreWithErrors()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('created', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'created',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(true)
@@ -368,13 +341,18 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStoreWithErrors()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('created', '123', { name: 'test' })
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'created',
+        id: { type: 'test', value: '123' },
+        payload: { name: 'test' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(true) // Should succeed silently
@@ -394,13 +372,17 @@ describe('[event] project event function', () => {
         }
       }
 
-      const db = new MockReadModelStoreWithErrors()
-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+      const projectFn = createProjectEventFnFactory(projection as any)()
 
-      const event = createTestEvent('deleted', '123')
+      const event: ExtendedDomainEvent<TestEvent> = {
+        type: 'deleted',
+        id: { type: 'test', value: '123' },
+        version: 1,
+        timestamp: new Date()
+      }
 
       // Act
-      const result = await projectFn(event)
+      const result = await projectFn(event, {})
 
       // Assert
       expect(result.ok).toBe(true) // Should succeed silently

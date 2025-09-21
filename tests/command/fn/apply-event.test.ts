@@ -12,7 +12,7 @@ describe('[command] apply event function', () => {
   describe('createApplyEventFnFactory', () => {
     test('should return a function when counter aggregate is provided', () => {
       // Act
-      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer, {})()
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)({})
 
       // Assert
       expect(applyEventFn).toBeDefined()
@@ -28,7 +28,7 @@ describe('[command] apply event function', () => {
       }
 
       // Act
-      const applyEventFn = createApplyEventFnFactory(counter2.decider, counter2.reducer, deps)()
+      const applyEventFn = createApplyEventFnFactory(counter2.decider, counter2.reducer)(deps)
 
       // Assert
       expect(applyEventFn).toBeDefined()
@@ -38,7 +38,7 @@ describe('[command] apply event function', () => {
   describe('ApplyEventFn', () => {
     test('should return a result with the new state and event when the command is valid', async () => {
       // Arrange
-      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer, {})()
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)({})
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {
@@ -81,7 +81,7 @@ describe('[command] apply event function', () => {
       const deciderFn = (_: unknown) => {
         throw new Error('error')
       }
-      const applyEventFn = createApplyEventFnFactory(deciderFn, counter.reducer, {})()
+      const applyEventFn = createApplyEventFnFactory(deciderFn, counter.reducer)({})
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {
@@ -113,7 +113,7 @@ describe('[command] apply event function', () => {
       const reducerFn = (_: unknown) => {
         throw new Error('error')
       }
-      const applyEventFn = createApplyEventFnFactory(counter.decider, reducerFn, {})()
+      const applyEventFn = createApplyEventFnFactory(counter.decider, reducerFn)({})
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {
@@ -149,7 +149,7 @@ describe('[command] apply event function', () => {
           payload: { count: 42 }
         })
       }
-      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer, {})()
+      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer)({})
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {
@@ -186,7 +186,7 @@ describe('[command] apply event function', () => {
           payload: { count: deps.externalService.getValue() }
         })
       }
-      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer, testDeps)()
+      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer)(testDeps)
 
       const id = zeroId('counter')
       const state: ExtendedState<CounterState> = {

@@ -349,6 +349,35 @@ describe('[query] query source builder', () => {
           }
         })
       })
+
+      test('should handle resolver that throws error', async () => {
+        const resolver: QueryResolver<CounterQuery, CounterQueryResult, CounterQueryDeps> = {
+          getCounter: async () => {
+            throw new Error('Service unavailable')
+          }
+        }
+
+        const mockDeps: CounterQueryDeps = {
+          service: {
+            getById: (id: string) => ({ id, name: `Test ${id}` }),
+            getAll: (_range: { limit: number; offset: number }) => []
+          }
+        }
+
+        const resolverFn = fromQueryResolver(resolver)
+
+        await expect(
+          resolverFn({
+            ctx: { timestamp: new Date() },
+            query: {
+              type: 'getCounter',
+              sourceType: 'counter',
+              payload: { id: 'test-123' }
+            },
+            deps: mockDeps
+          })
+        ).rejects.toThrow('Service unavailable')
+      })
     })
   })
 })

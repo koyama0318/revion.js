@@ -19,16 +19,11 @@ function createCommandHandlerFactory<
 >(aggregate: Aggregate<S, C, E, D>): CommandHandlerFactory<D> {
   return (deps: D) => {
     const replayFn = createReplayEventFnFactory<S, E>(aggregate.reducer)(deps.eventStore)
-    const initFn = createInitEventFnFactory<S, C, E, D>(
-      aggregate.decider,
-      aggregate.reducer,
-      deps
-    )()
+    const initFn = createInitEventFnFactory<S, C, E, D>(aggregate.decider, aggregate.reducer)(deps)
     const applyFn = createApplyEventFnFactory<S, C, E, D>(
       aggregate.decider,
-      aggregate.reducer,
-      deps
-    )()
+      aggregate.reducer
+    )(deps)
     const saveFn = createSaveEventFnFactory<S, E>()(deps.eventStore)
 
     // Handles aggregate creation or update based on the incoming command

@@ -1,2 +1,6 @@
 export * from './counter-app/features/counter/counter-aggregate'
+export * from './counter-app/features/counter/counter-reactor'
 export * from './counter-app/features/counter2/counter2-aggregate'
+export * from './counter-app/features/counter2/counter2-reactor'
+export { zeroId } from '../../src/command/helpers/aggregate-id'
+export { aggregateFixture } from '../../src/fake/aggregate-fixture'

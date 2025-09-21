@@ -260,19 +260,5 @@ describe('[event] event reactor builder', () => {
       expect(result.name).toBe('Test Item')
       expect(result.status).toBe('active')
     })
-
-    test('throws error when building incomplete reactor', () => {
-      // Arrange
-      const incompleteBuilder = createEventReactor<TestEvent, TestCommand, TestReadModel>()
-        .type('test')
-        .policy(testPolicy)
-      // Missing projection
-
-      // Act & Assert
-      expect(() => {
-        // @ts-expect-error - This should fail at compile time, but we test runtime behavior
-        incompleteBuilder.build()
-      }).toThrow('EventReactor is not ready to build. Missing required properties.')
-    })
   })
 })

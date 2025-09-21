@@ -17,7 +17,10 @@ const policy: Policy<CounterEvent, CounterCommand, typeof policyMap> = {
 const projectionMap = {
   created: [
     { readModel: 'counter' },
-    { readModel: 'achievement', where: (e: CounterEvent) => ({ counterId: e.id.value }) }
+    {
+      readModel: 'achievement',
+      where: (_e: CounterEvent) => ({ by: 'id', operator: 'eq', value: '1' })
+    }
   ],
   incremented: [{ readModel: 'counter' }],
   decremented: [{ readModel: 'counter' }]
@@ -54,7 +57,7 @@ const projection: Projection<CounterEvent, CounterReadModels, typeof projectionM
   }
 }
 
-export const counterReactor = createEventReactor<CounterEvent, CounterCommand, CounterReadModels>()
+export const counterReactor2 = createEventReactor<CounterEvent, CounterCommand, CounterReadModels>()
   .type('counter')
   .policyWithMap(policy, policyMap)
   .projectionWithMap(projection, projectionMap)

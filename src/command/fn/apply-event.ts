@@ -26,10 +26,9 @@ export function createApplyEventFnFactory<
   D extends Record<string, unknown> = Record<string, unknown>
 >(
   eventDecider: EventDeciderFn<S, C, E, D>,
-  reducer: ReducerFn<S, E>,
-  deps: D
-): () => ApplyEventFn<S, C, E> {
-  return () => {
+  reducer: ReducerFn<S, E>
+): (deps: D) => ApplyEventFn<S, C, E> {
+  return (deps: D) => {
     return async (state: ExtendedState<S>, command: C) => {
       const timestamp = new Date()
 

@@ -3,20 +3,29 @@ import type { EventDecider, Reducer } from '../../../../../src/types/command'
 import type { CounterCommand, CounterEvent, CounterState } from './types'
 
 const decider: EventDecider<CounterState, CounterCommand, CounterEvent> = {
-  create: ({ command }) => {
+  create: ({ command, state }) => {
+    if (state.type === 'active') {
+      throw new Error('Counter already exists')
+    }
     return {
       type: 'created',
       id: command.id,
       payload: { count: command.payload.count }
     }
   },
-  increment: ({ command }) => {
+  increment: ({ command, state }) => {
+    if (state.type !== 'active') {
+      throw new Error('Counter does not exist')
+    }
     return {
       type: 'incremented',
       id: command.id
     }
   },
-  decrement: ({ command }) => {
+  decrement: ({ command, state }) => {
+    if (state.type !== 'active') {
+      throw new Error('Counter does not exist')
+    }
     return {
       type: 'decremented',
       id: command.id

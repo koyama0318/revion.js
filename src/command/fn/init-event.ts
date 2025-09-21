@@ -25,10 +25,9 @@ export function createInitEventFnFactory<
   D extends Record<string, unknown> = Record<string, unknown>
 >(
   eventDecider: EventDeciderFn<S, C, E, D>,
-  reducer: ReducerFn<S, E>,
-  deps: D
-): () => InitEventFn<S, C, E> {
-  return () => {
+  reducer: ReducerFn<S, E>
+): (deps: D) => InitEventFn<S, C, E> {
+  return (deps: D) => {
     return async (command: C) => {
       // Represents the provisional initial state in the event sourcing pattern.
       // This state is used as the starting point before any events have been applied.
