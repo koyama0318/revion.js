@@ -8,7 +8,7 @@ describe('[command] init event function', () => {
   describe('createInitEventFnFactory', () => {
     test('should return a function when counter aggregate is provided', () => {
       // Act
-      const initEventFn = createInitEventFnFactory(counter.decider, counter.reducer, {})()
+      const initEventFn = createInitEventFnFactory(counter.decider, counter.reducer)()
 
       // Assert
       expect(initEventFn).toBeDefined()
@@ -16,7 +16,7 @@ describe('[command] init event function', () => {
 
     test('should return a function when counter2 aggregate is provided', () => {
       // Arrange
-      const deps = {
+      const _deps = {
         counterRepository: {
           getCounter: async () => ({ type: 'active' as const, id: zeroId('counter'), count: 0 }),
           saveCounter: async () => {}
@@ -24,7 +24,7 @@ describe('[command] init event function', () => {
       }
 
       // Act
-      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer, deps)()
+      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer)()
 
       // Assert
       expect(initEventFn).toBeDefined()
@@ -34,7 +34,7 @@ describe('[command] init event function', () => {
   describe('InitEventFn', () => {
     test('should return a result with the new state and event when the command is valid', async () => {
       // Arrange
-      const applyEventFn = createInitEventFnFactory(counter.decider, counter.reducer, {})()
+      const applyEventFn = createInitEventFnFactory(counter.decider, counter.reducer)()
 
       const id = zeroId('counter')
       const command: CounterCommand = {
@@ -71,7 +71,7 @@ describe('[command] init event function', () => {
       const deciderFn = (_: unknown) => {
         throw new Error('error')
       }
-      const applyEventFn = createInitEventFnFactory(deciderFn, counter.reducer, {})()
+      const applyEventFn = createInitEventFnFactory(deciderFn, counter.reducer)()
 
       const id = zeroId('counter')
       const command: CounterCommand = {
@@ -98,7 +98,7 @@ describe('[command] init event function', () => {
     const reducerFn = (_: unknown) => {
       throw new Error('error')
     }
-    const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn, {})()
+    const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn)()
 
     const id = zeroId('counter')
     const command: CounterCommand = {
@@ -116,36 +116,6 @@ describe('[command] init event function', () => {
     if (!res.ok) {
       expect(res.error).toBeDefined()
       expect(res.error.code).toBe('REDUCER_RETURNED_VOID')
-    }
-  })
-
-  test('should handle Promise-based event decider results', async () => {
-    // Arrange
-    const decider = async ({ command }: { command: CounterCommand }) => {
-      return Promise.resolve({
-        type: 'created' as const,
-        id: command.id,
-        payload: { count: 55 }
-      })
-    }
-    const initEventFn = createInitEventFnFactory(decider, counter.reducer, {})()
-
-    const id = zeroId('counter')
-    const command: CounterCommand = {
-      type: 'create',
-      id,
-      payload: { count: 55 }
-    }
-
-    // Act
-    const res = await initEventFn(command)
-
-    // Assert
-    expect(res).toBeDefined()
-    expect(res.ok).toBe(true)
-    if (res.ok) {
-      expect(res.value.event.payload.count).toEqual(55)
-      expect(res.value.state.count).toBe(55)
     }
   })
 })

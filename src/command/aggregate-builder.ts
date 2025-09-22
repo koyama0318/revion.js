@@ -180,6 +180,6 @@ export class AggregateBuilder<
   }
 }
 
-export function createAggregate<S extends State, C extends Command, E extends DomainEvent, _D>() {
+export function createAggregate<S extends State, C extends Command, E extends DomainEvent>() {
   return new AggregateBuilder<'initial', S, C, E>({})
 }

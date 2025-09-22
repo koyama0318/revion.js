@@ -3,24 +3,14 @@ import { EventStoreInMemory } from '../../src/adapter/event-store-in-memory'
 import { createCommandBus } from '../../src/command/command-bus'
 import { zeroId } from '../../src/command/helpers/aggregate-id'
 import type { AggregateId, Command } from '../../src/types/core'
-import type {
-  CommandHandler,
-  CommandHandlerDeps,
-  CommandHandlerMiddleware
-} from '../../src/types/framework'
+import type { CommandHandler, CommandHandlerMiddleware } from '../../src/types/framework'
 import { counter } from '../fixtures/counter-app/features/counter/counter-aggregate'
-
-function createTestDeps(): CommandHandlerDeps {
-  return {
-    eventStore: new EventStoreInMemory()
-  }
-}
 
 describe('[command] command bus functionality', () => {
   describe('createCommandBus', () => {
     test('creates command bus with minimal configuration', () => {
       // Arrange
-      const deps = createTestDeps()
+      const deps = { eventStore: new EventStoreInMemory() }
 
       // Act
       const commandBus = createCommandBus({
@@ -35,7 +25,7 @@ describe('[command] command bus functionality', () => {
 
     test('creates command bus with full configuration including middleware and services', () => {
       // Arrange
-      const deps = createTestDeps()
+      const deps = { eventStore: new EventStoreInMemory() }
       const testMiddleware: CommandHandlerMiddleware = async (command, next) => next(command)
 
       // Act
@@ -51,7 +41,7 @@ describe('[command] command bus functionality', () => {
 
     test('returns function that can execute commands', () => {
       // Arrange
-      const deps = createTestDeps()
+      const deps = { eventStore: new EventStoreInMemory() }
 
       // Act
       const commandBus = createCommandBus({ deps })
@@ -66,7 +56,7 @@ describe('[command] command bus functionality', () => {
     describe('command validation', () => {
       test('executes valid command successfully', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({
           deps,
           aggregates: [counter]
@@ -90,7 +80,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error for invalid command structure', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         // missing required fields like 'type'
@@ -110,7 +100,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error for command with invalid aggregate ID structure', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand: Command = {
@@ -131,7 +121,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error for command with array payload', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand: Command = {
@@ -152,7 +142,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error for command with empty object payload', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand: Command = {
@@ -173,7 +163,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error for command with null payload', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand = {
@@ -194,7 +184,7 @@ describe('[command] command bus functionality', () => {
 
       test('accepts command without payload', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({
           deps,
           aggregates: [counter]
@@ -215,7 +205,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error for invalid command type', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand: Command = {
@@ -237,7 +227,7 @@ describe('[command] command bus functionality', () => {
     describe('command handler resolution', () => {
       test('executes command when matching handler exists', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({
           deps,
           aggregates: [counter]
@@ -261,7 +251,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error when no handler found for command type', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({
           deps,
           aggregates: [] // no aggregates registered
@@ -287,7 +277,7 @@ describe('[command] command bus functionality', () => {
     describe('middleware application', () => {
       test('executes command without middleware successfully', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({
           deps,
           aggregates: [counter],
@@ -312,7 +302,7 @@ describe('[command] command bus functionality', () => {
 
       test('applies single middleware to command execution', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         let middlewareExecuted = false
 
         const testMiddleware: CommandHandlerMiddleware = async (
@@ -345,7 +335,7 @@ describe('[command] command bus functionality', () => {
 
       test('applies multiple middleware in correct order', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const executionOrder: string[] = []
 
         const middleware1: CommandHandlerMiddleware = async (
@@ -394,7 +384,7 @@ describe('[command] command bus functionality', () => {
 
       test('handles middleware that modifies command', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
 
         const modifyingMiddleware: CommandHandlerMiddleware = async (
           command: Command,
@@ -432,7 +422,7 @@ describe('[command] command bus functionality', () => {
 
       test('handles middleware that returns early with error', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
 
         const errorMiddleware: CommandHandlerMiddleware = async _ => {
           return {
@@ -468,7 +458,7 @@ describe('[command] command bus functionality', () => {
 
       test('handles middleware that throws error', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
 
         const throwingMiddleware: CommandHandlerMiddleware = async _ => {
           throw new Error('Middleware threw an error')
@@ -494,7 +484,7 @@ describe('[command] command bus functionality', () => {
 
       test('passes next handler correctly through middleware chain', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         let nextHandlerReceived = false
 
         const verifyingMiddleware: CommandHandlerMiddleware = async (
@@ -525,53 +515,10 @@ describe('[command] command bus functionality', () => {
       })
     })
 
-    // TODO: implement domain services functionality
-    // describe('integration with domain services', () => {
-    //   test('creates command bus with domain services configuration', () => {
-    //     // Arrange
-    //     const deps = createTestDeps()
-    //     const testService = createDomainService('test-service', async () => {})
-
-    //     // Act
-    //     const commandBus = createCommandBus({
-    //       deps,
-    //       services: [testService]
-    //     })
-
-    //     // Assert
-    //     expect(typeof commandBus).toBe('function')
-    //   })
-
-    //   test('executes commands when domain services are configured', async () => {
-    //     // Arrange
-    //     const deps = createTestDeps()
-    //     const testService = createDomainService('test-service', async () => {})
-
-    //     const commandBus = createCommandBus({
-    //       deps,
-    //       services: [testService]
-    //     })
-
-    //     const command: Command = {
-    //       type: 'process',
-    //       id: id('test-service', '00000000-0000-0000-0000-000000000001')
-    //     }
-
-    //     // Act
-    //     const result = await commandBus(command)
-
-    //     // Assert
-    //     expect(result.ok).toBe(true)
-    //     if (result.ok) {
-    //       expect(result.value.id).toEqual(command.id)
-    //     }
-    //   })
-    // })
-
     describe('error handling and result types', () => {
       test('returns success result for successful command execution', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({
           deps,
           aggregates: [counter]
@@ -596,7 +543,7 @@ describe('[command] command bus functionality', () => {
 
       test('returns error result with correct structure for failures', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand = {}
@@ -613,7 +560,7 @@ describe('[command] command bus functionality', () => {
 
       test('preserves error details from command validation', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand: Command = {
@@ -633,7 +580,7 @@ describe('[command] command bus functionality', () => {
 
       test('preserves error details from aggregate ID validation', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({ deps })
 
         const invalidCommand: Command = {
@@ -653,7 +600,7 @@ describe('[command] command bus functionality', () => {
 
       test('preserves error details from handler execution', async () => {
         // Arrange
-        const deps = createTestDeps()
+        const deps = { eventStore: new EventStoreInMemory() }
         const commandBus = createCommandBus({
           deps,
           aggregates: [] // no handlers available

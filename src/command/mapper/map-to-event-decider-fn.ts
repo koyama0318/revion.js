@@ -1,7 +1,7 @@
 import type { EventDecider, EventDeciderFn } from '../../types/command'
 import type { Command, DomainEvent, State } from '../../types/core'
 
-export function mapToEventDeciderFn<S extends State, C extends Command, E extends DomainEvent, _D>(
+export function mapToEventDeciderFn<S extends State, C extends Command, E extends DomainEvent>(
   deciders: EventDecider<S, C, E>
 ): EventDeciderFn<S, C, E> {
   return ({ ctx, state, command }) => {

@@ -16,4 +16,4 @@ export type EventDeciderParams<S extends State, C extends Command> = {
 
 export type EventDeciderFn<S extends State, C extends Command, E extends DomainEvent> = (
   params: EventDeciderParams<S, C>
-) => E | Promise<E>
+) => E
