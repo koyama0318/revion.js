@@ -5,24 +5,17 @@ import { zeroId } from '../../src/command/helpers/aggregate-id'
 import { counter } from '../fixtures'
 import type { CounterCommand } from '../fixtures/counter-app/features/counter/types'
 
-const testId = zeroId('counter')
-
-const createCommand: CounterCommand = {
-  type: 'create',
-  id: testId,
-  payload: { count: 5 }
-}
-
-const incrementCommand: CounterCommand = {
-  type: 'increment',
-  id: testId
-}
-
-describe('[command] command handler', () => {
-  describe('aggregate command handling', () => {
+describe('command-handler', () => {
+  describe('createCommandHandlerFactory', () => {
     describe('new aggregate creation flow', () => {
       test('creates new aggregate when no events stored', async () => {
         // Arrange
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
         const deps = {
           eventStore: new EventStoreInMemory()
         }
@@ -45,17 +38,15 @@ describe('[command] command handler', () => {
 
       test('returns error when init function fails', async () => {
         // Arrange
+        const testId = zeroId('counter')
         const deps = {
           eventStore: new EventStoreInMemory()
         }
-
-        // Create invalid command that will cause init to fail
         const invalidCommand = {
           type: 'invalid' as const,
           id: testId,
           payload: {}
         }
-
         const handlers = createCommandHandlers(deps, [counter])
         const commandHandler = handlers[counter.type]!
 
@@ -68,16 +59,19 @@ describe('[command] command handler', () => {
 
       test('returns error when create command not accepted for initial state', async () => {
         // Arrange
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
         const deps = {
           eventStore: new EventStoreInMemory()
         }
-
-        // Create a counter aggregate that rejects the create command
         const rejectingAggregate = {
           ...counter,
           acceptsCommand: () => false
         }
-
         const handlers = createCommandHandlers(deps, [rejectingAggregate])
         const commandHandler = handlers[rejectingAggregate.type]!
 
@@ -93,6 +87,12 @@ describe('[command] command handler', () => {
 
       test('returns error when save function fails during creation', async () => {
         // Arrange
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
         const deps = {
           eventStore: new EventStoreInMemory()
         }
@@ -113,16 +113,24 @@ describe('[command] command handler', () => {
     describe('existing aggregate update flow', () => {
       test('updates existing aggregate when replay succeeds', async () => {
         // Arrange
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
+        const incrementCommand: CounterCommand = {
+          type: 'increment',
+          id: testId
+        }
         const deps = {
           eventStore: new EventStoreInMemory()
         }
-
-        // First create the aggregate
         const handlers = createCommandHandlers(deps, [counter])
         const commandHandler = handlers[counter.type]!
         await commandHandler(createCommand)
 
-        // Act - Update the existing aggregate
+        // Act
         const result = await commandHandler(incrementCommand)
 
         // Assert
@@ -138,6 +146,16 @@ describe('[command] command handler', () => {
 
       test('returns error when update command not accepted for replayed state', async () => {
         // Arrange
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
+        const incrementCommand: CounterCommand = {
+          type: 'increment',
+          id: testId
+        }
         const deps = {
           eventStore: new EventStoreInMemory()
         }
@@ -168,6 +186,12 @@ describe('[command] command handler', () => {
 
       test('returns error when apply function fails', async () => {
         // Arrange
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
         const deps = {
           eventStore: new EventStoreInMemory()
         }
@@ -193,6 +217,16 @@ describe('[command] command handler', () => {
 
       test('returns error when save function fails during update', async () => {
         // Arrange - Create aggregate first with working deps
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
+        const incrementCommand: CounterCommand = {
+          type: 'increment',
+          id: testId
+        }
         const workingDeps = {
           eventStore: new EventStoreInMemory()
         }
@@ -230,6 +264,12 @@ describe('[command] command handler', () => {
     describe('replay error handling', () => {
       test('returns error when replay fails with non-recoverable error', async () => {
         // Arrange
+        const testId = zeroId('counter')
+        const createCommand: CounterCommand = {
+          type: 'create',
+          id: testId,
+          payload: { count: 5 }
+        }
         const deps = {
           eventStore: new EventStoreInMemory()
         }
@@ -289,11 +329,15 @@ describe('[command] command handler', () => {
       expect(handlers).toHaveProperty('counter')
       expect(typeof handlers[counter.type]).toBe('function')
     })
-  })
 
-  describe('acceptsCommand operation mode parameter', () => {
     test('calls acceptsCommand with "create" mode for new aggregates', async () => {
       // Arrange
+      const testId = zeroId('counter')
+      const createCommand: CounterCommand = {
+        type: 'create',
+        id: testId,
+        payload: { count: 5 }
+      }
       let capturedMode: string | undefined
       const testAggregate = {
         ...counter,
@@ -302,7 +346,6 @@ describe('[command] command handler', () => {
           return true
         }
       }
-
       const deps = {
         eventStore: new EventStoreInMemory()
       }
@@ -318,6 +361,16 @@ describe('[command] command handler', () => {
 
     test('calls acceptsCommand with "update" mode for existing aggregates', async () => {
       // Arrange
+      const testId = zeroId('counter')
+      const createCommand: CounterCommand = {
+        type: 'create',
+        id: testId,
+        payload: { count: 5 }
+      }
+      const incrementCommand: CounterCommand = {
+        type: 'increment',
+        id: testId
+      }
       let capturedMode: string | undefined
       const testAggregate = {
         ...counter,
@@ -326,7 +379,6 @@ describe('[command] command handler', () => {
           return true
         }
       }
-
       const deps = {
         eventStore: new EventStoreInMemory()
       }
@@ -349,13 +401,18 @@ describe('[command] command handler', () => {
 
     test('rejects create command when acceptsCommand returns false for create mode', async () => {
       // Arrange
+      const testId = zeroId('counter')
+      const createCommand: CounterCommand = {
+        type: 'create',
+        id: testId,
+        payload: { count: 5 }
+      }
       const rejectingCreateAggregate = {
         ...counter,
         acceptsCommand: (_state: unknown, _commandd: unknown, mode: string) => {
           return mode !== 'create'
         }
       }
-
       const deps = {
         eventStore: new EventStoreInMemory()
       }
@@ -375,13 +432,22 @@ describe('[command] command handler', () => {
 
     test('rejects update command when acceptsCommand returns false for update mode', async () => {
       // Arrange
+      const testId = zeroId('counter')
+      const createCommand: CounterCommand = {
+        type: 'create',
+        id: testId,
+        payload: { count: 5 }
+      }
+      const incrementCommand: CounterCommand = {
+        type: 'increment',
+        id: testId
+      }
       const rejectingUpdateAggregate = {
         ...counter,
         acceptsCommand: (_state: unknown, _commandd: unknown, mode: string) => {
           return mode !== 'update'
         }
       }
-
       const deps = {
         eventStore: new EventStoreInMemory()
       }

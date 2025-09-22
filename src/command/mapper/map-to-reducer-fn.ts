@@ -6,34 +6,38 @@ export function mapToReducerFn<S extends State, E extends DomainEvent>(
   reducers: Reducer<S, E>
 ): ReducerFn<S, E> {
   return ({ ctx, state, event }) => {
-    const reducer = reducers[event.type as keyof typeof reducers]
-    if (!reducer) {
-      throw new Error(`No reducer found for event type: ${String(event.type)}`)
+    const reducerFn = reducers[event.type as keyof typeof reducers]
+    if (!reducerFn) {
+      throw new Error(`No reducer found for event type: "${String(event.type)}"`)
     }
 
-    // Holds the new typed state if returned by the reducer
-    let updatedTypedState = null
+    // If the reducer returns a completely new state object, store it here.
+    let replacementState: S | null = null
 
-    const updatedState = produce(state, draft => {
-      // The reducer mutates the draft in place. If it returns a value, store it as the typed state.
-      const res = reducer({
+    const producedState = produce(state, draft => {
+      const params = {
         ctx,
         state: draft,
         event: event as Extract<E, { type: typeof event.type }>
-      })
-      if (res !== undefined) {
-        // Validate that the returned value is a proper state object
-        if (res === null || typeof res !== 'object') {
-          throw new Error(
-            `Reducer for event type "${String(event.type)}" returned invalid value: ${typeof res}. ` +
-              'Reducers must return either undefined (to use mutated draft) or a valid state object.'
-          )
-        }
-        updatedTypedState = res
       }
+
+      const result = reducerFn(params)
+      if (result === undefined) {
+        // Reducer mutated the draft in-place → immer will return the new state automatically.
+        return
+      }
+
+      if (result === null || typeof result !== 'object') {
+        throw new Error(
+          `Reducer for event "${String(event.type)}" returned an invalid value (${typeof result}). ` +
+            'Expected either undefined (mutate draft) or a valid state object.'
+        )
+      }
+
+      replacementState = result
     })
 
-    // reducer mutates draft in place, so result is always the new state
-    return updatedTypedState ?? updatedState
+    // If the reducer returned a new state object, use it; otherwise, use the produced draft result.
+    return replacementState ?? producedState
   }
 }
