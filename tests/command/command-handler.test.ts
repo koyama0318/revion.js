@@ -2,35 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { EventStoreInMemory } from '../../src/adapter/event-store-in-memory'
 import { createCommandHandlers } from '../../src/command/command-handler'
 import { zeroId } from '../../src/command/helpers/aggregate-id'
-import type { EventStore } from '../../src/types/adapter'
 import { counter } from '../fixtures'
 import type { CounterCommand } from '../fixtures/counter-app/features/counter/types'
-
-function createFailingEventStore(
-  operation: 'getEvents' | 'saveEvent' | 'getLastEventVersion'
-): EventStore {
-  const store = new EventStoreInMemory()
-
-  switch (operation) {
-    case 'saveEvent':
-      store.saveEvent = async () => {
-        throw new Error('Save failed')
-      }
-      break
-    case 'getEvents':
-      store.getEvents = async () => {
-        throw new Error('Database error')
-      }
-      break
-    case 'getLastEventVersion':
-      store.getLastEventVersion = async () => {
-        throw new Error('Database error')
-      }
-      break
-  }
-
-  return store
-}
 
 const testId = zeroId('counter')
 
@@ -121,7 +94,10 @@ describe('[command] command handler', () => {
       test('returns error when save function fails during creation', async () => {
         // Arrange
         const deps = {
-          eventStore: createFailingEventStore('saveEvent')
+          eventStore: new EventStoreInMemory()
+        }
+        deps.eventStore.saveEvent = async () => {
+          throw new Error('Save failed')
         }
         const handlers = createCommandHandlers(deps, [counter])
         const commandHandler = handlers[counter.type]!
@@ -226,7 +202,10 @@ describe('[command] command handler', () => {
 
         // Copy events to failing deps
         const failingDeps = {
-          eventStore: createFailingEventStore('saveEvent')
+          eventStore: new EventStoreInMemory()
+        }
+        failingDeps.eventStore.saveEvent = async () => {
+          throw new Error('Save failed')
         }
         const events = await workingDeps.eventStore.getEvents(testId)
         for (const event of events) {
@@ -252,10 +231,13 @@ describe('[command] command handler', () => {
       test('returns error when replay fails with non-recoverable error', async () => {
         // Arrange
         const deps = {
-          eventStore: createFailingEventStore('getEvents')
+          eventStore: new EventStoreInMemory()
+        }
+        deps.eventStore.getEvents = async () => {
+          throw new Error('Database error')
         }
         const handlers = createCommandHandlers(deps, [counter])
-        const commandHandler = handlers[counter.type]!
+        const commandHandler = handlers[counter.type]
 
         // Act
         const result = await commandHandler(createCommand)

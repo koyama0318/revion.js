@@ -16,14 +16,14 @@ import { err, ok, toResult } from '../../utils/result'
 
 type InitEventFn<S extends State, C extends Command, E extends DomainEvent> = (
   command: C
-) => Promise<Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>>
+) => Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>
 
 export function createInitEventFnFactory<S extends State, C extends Command, E extends DomainEvent>(
   eventDecider: EventDeciderFn<S, C, E>,
   reducer: ReducerFn<S, E>
 ): () => InitEventFn<S, C, E> {
   return () => {
-    return async (command: C) => {
+    return (command: C) => {
       // Represents the provisional initial state in the event sourcing pattern.
       // This state is used as the starting point before any events have been applied.
       // It is constructed using the aggregate ID from the command.
@@ -46,14 +46,12 @@ export function createInitEventFnFactory<S extends State, C extends Command, E e
         })
       }
 
-      const event: E | Promise<E> = eventRes.value
-      const resolvedEvent: E = await Promise.resolve(event)
       const lastVersion = provisionalState.version
       const newVersion = lastVersion + 1
       const timestamp = new Date()
 
       const newExtendedEvent: ExtendedDomainEvent<E> = {
-        ...resolvedEvent,
+        ...eventRes.value,
         id: provisionalState.id,
         version: newVersion,
         timestamp

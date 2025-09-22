@@ -17,7 +17,7 @@ import { err, ok, toResult } from '../../utils/result'
 type ApplyEventFn<S extends State, C extends Command, E extends DomainEvent> = (
   state: ExtendedState<S>,
   command: C
-) => Promise<Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>>
+) => Result<{ state: ExtendedState<S>; event: ExtendedDomainEvent<E> }, AppError>
 
 export function createApplyEventFnFactory<
   S extends State,
@@ -25,7 +25,7 @@ export function createApplyEventFnFactory<
   E extends DomainEvent
 >(eventDecider: EventDeciderFn<S, C, E>, reducer: ReducerFn<S, E>): () => ApplyEventFn<S, C, E> {
   return () => {
-    return async (state: ExtendedState<S>, command: C) => {
+    return (state: ExtendedState<S>, command: C) => {
       const timestamp = new Date()
 
       const deciderCtx: EventDeciderContext = {
@@ -40,13 +40,11 @@ export function createApplyEventFnFactory<
         })
       }
 
-      const event: E | Promise<E> = eventRes.value
-      const resolvedEvent: E = await Promise.resolve(event)
       const lastVersion = state.version
       const newVersion = lastVersion + 1
 
       const newExtendedEvent: ExtendedDomainEvent<E> = {
-        ...resolvedEvent,
+        ...eventRes.value,
         id: state.id,
         version: newVersion,
         timestamp
