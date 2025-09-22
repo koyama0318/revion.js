@@ -3,7 +3,7 @@ import { id, zeroId } from '../../../src/command/helpers/aggregate-id'
 import { validateCommand } from '../../../src/command/helpers/validate-command'
 import type { AggregateId, Command } from '../../../src/types/core'
 
-describe('[command] validate command function', () => {
+describe('validate-command', () => {
   describe('validateCommand', () => {
     test('returns success for valid command with payload', () => {
       // Arrange

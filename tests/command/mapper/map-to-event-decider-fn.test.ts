@@ -34,105 +34,107 @@ const testDeciders: EventDecider<TestState, TestCommand, TestEvent> = {
   })
 }
 
-describe('[command] mapToEventDeciderFn', () => {
-  test('converts EventDecider object to EventDeciderFn', () => {
-    // Arrange & Act
-    const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
+describe('map-to-event-decider-fn', () => {
+  describe('mapToEventDeciderFn', () => {
+    test('converts EventDecider object to EventDeciderFn', () => {
+      // Arrange & Act
+      const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
 
-    // Assert
-    expect(typeof deciderFn).toBe('function')
-  })
-
-  test('produces event correctly for known command', () => {
-    // Arrange
-    const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
-    const command: TestCommand = {
-      type: 'create',
-      id: { type: 'test', value: '1' },
-      payload: { value: 10 }
-    }
-    const state: TestState = { type: 'inactive', id: { type: 'test', value: '1' }, value: 0 }
-    const ctx = { timestamp: new Date() }
-
-    // Act
-    const event = deciderFn({ ctx, state, command })
-
-    // Assert
-    expect(event).toEqual({
-      type: 'created',
-      id: { type: 'test', value: '1' },
-      payload: { value: 10 }
+      // Assert
+      expect(typeof deciderFn).toBe('function')
     })
-  })
 
-  test('handles different command types correctly', () => {
-    // Arrange
-    const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
-    const command: TestCommand = {
-      type: 'update',
-      id: { type: 'test', value: '2' },
-      payload: { value: 200 }
-    }
-    const state: TestState = { type: 'active', id: { type: 'test', value: '2' }, value: 50 }
-    const ctx = { timestamp: new Date() }
+    test('produces event correctly for known command', () => {
+      // Arrange
+      const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
+      const command: TestCommand = {
+        type: 'create',
+        id: { type: 'test', value: '1' },
+        payload: { value: 10 }
+      }
+      const state: TestState = { type: 'inactive', id: { type: 'test', value: '1' }, value: 0 }
+      const ctx = { timestamp: new Date() }
 
-    // Act
-    const event = deciderFn({ ctx, state, command })
+      // Act
+      const event = deciderFn({ ctx, state, command })
 
-    // Assert
-    expect(event.type).toBe('updated')
-    expect(event.id).toEqual({ type: 'test', value: '2' })
-    expect((event as Extract<TestEvent, { type: 'updated' }>).payload.value).toBe(200)
-  })
-
-  test('throws error for unknown command type', () => {
-    // Arrange
-    const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
-    const unknownCommand = { type: 'unknown', id: { type: 'test', value: 'x' } }
-    const state: TestState = { type: 'active', id: { type: 'test', value: 'x' }, value: 0 }
-    const ctx = { timestamp: new Date() }
-
-    // Act & Assert
-    expect(() => {
-      deciderFn({ ctx, state, command: unknownCommand as TestCommand })
-    }).toThrow('No decider found for type: unknown')
-  })
-
-  test('passes deps to decider', () => {
-    // Arrange
-    const localDecider: EventDecider<TestState, TestCommand, TestEvent> = {
-      create: ({ command }) => ({
+      // Assert
+      expect(event).toEqual({
         type: 'created',
-        id: command.id,
-        payload: { value: command.payload.value }
-      }),
-      update: ({ command }) => ({
-        type: 'updated',
-        id: command.id,
-        payload: { value: command.payload.value }
-      }),
-      deactivate: ({ command }) => ({
-        type: 'deactivated',
-        id: command.id
+        id: { type: 'test', value: '1' },
+        payload: { value: 10 }
       })
-    }
-    const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(localDecider)
-    const command: TestCommand = {
-      type: 'create',
-      id: { type: 'test', value: '3' },
-      payload: { value: 5 }
-    }
-    const state: TestState = { type: 'inactive', id: { type: 'test', value: '3' }, value: 0 }
-    const ctx = { timestamp: new Date() }
+    })
 
-    // Act
-    const event = deciderFn({ ctx, state, command })
+    test('handles different command types correctly', () => {
+      // Arrange
+      const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
+      const command: TestCommand = {
+        type: 'update',
+        id: { type: 'test', value: '2' },
+        payload: { value: 200 }
+      }
+      const state: TestState = { type: 'active', id: { type: 'test', value: '2' }, value: 50 }
+      const ctx = { timestamp: new Date() }
 
-    // Assert
-    expect(event).toEqual({
-      type: 'created',
-      id: { type: 'test', value: '3' },
-      payload: { value: 5 }
+      // Act
+      const event = deciderFn({ ctx, state, command })
+
+      // Assert
+      expect(event.type).toBe('updated')
+      expect(event.id).toEqual({ type: 'test', value: '2' })
+      expect((event as Extract<TestEvent, { type: 'updated' }>).payload.value).toBe(200)
+    })
+
+    test('throws error for unknown command type', () => {
+      // Arrange
+      const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(testDeciders)
+      const unknownCommand = { type: 'unknown', id: { type: 'test', value: 'x' } }
+      const state: TestState = { type: 'active', id: { type: 'test', value: 'x' }, value: 0 }
+      const ctx = { timestamp: new Date() }
+
+      // Act & Assert
+      expect(() => {
+        deciderFn({ ctx, state, command: unknownCommand as TestCommand })
+      }).toThrow('No decider found for type: unknown')
+    })
+
+    test('passes deps to decider', () => {
+      // Arrange
+      const localDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({
+          type: 'created',
+          id: command.id,
+          payload: { value: command.payload.value }
+        }),
+        update: ({ command }) => ({
+          type: 'updated',
+          id: command.id,
+          payload: { value: command.payload.value }
+        }),
+        deactivate: ({ command }) => ({
+          type: 'deactivated',
+          id: command.id
+        })
+      }
+      const deciderFn = mapToEventDeciderFn<TestState, TestCommand, TestEvent>(localDecider)
+      const command: TestCommand = {
+        type: 'create',
+        id: { type: 'test', value: '3' },
+        payload: { value: 5 }
+      }
+      const state: TestState = { type: 'inactive', id: { type: 'test', value: '3' }, value: 0 }
+      const ctx = { timestamp: new Date() }
+
+      // Act
+      const event = deciderFn({ ctx, state, command })
+
+      // Assert
+      expect(event).toEqual({
+        type: 'created',
+        id: { type: 'test', value: '3' },
+        payload: { value: 5 }
+      })
     })
   })
 })

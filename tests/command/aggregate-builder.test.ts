@@ -17,28 +17,7 @@ type TestEvent =
   | { type: 'updated'; id: AggregateId<'test'>; payload: { value: number } }
   | { type: 'deactivated'; id: AggregateId<'test'> }
 
-const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
-  create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
-  update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
-  deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
-}
-
-const testReducer: Reducer<TestState, TestEvent> = {
-  created: ({ state, event }) => {
-    state.type = 'active'
-    state.id = event.id
-    state.value = event.payload.value
-  },
-  updated: ({ state, event }) => {
-    state.value = event.payload.value
-  },
-  deactivated: ({ state }) => {
-    state.type = 'inactive'
-    state.value = 0
-  }
-}
-
-describe('[command] aggregate builder', () => {
+describe('aggregate-builder', () => {
   describe('createAggregate', () => {
     test('creates aggregate builder instance', () => {
       // Arrange & Act
@@ -50,9 +29,30 @@ describe('[command] aggregate builder', () => {
     })
   })
 
-  describe('aggregate building and functionality', () => {
+  describe('AggregateBuilder', () => {
     test('builds functioning aggregate with basic configuration', () => {
-      // Arrange & Act
+      // Arrange
+      const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+        update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+        deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
+      }
+      const testReducer: Reducer<TestState, TestEvent> = {
+        created: ({ state, event }) => {
+          state.type = 'active'
+          state.id = event.id
+          state.value = event.payload.value
+        },
+        updated: ({ state, event }) => {
+          state.value = event.payload.value
+        },
+        deactivated: ({ state }) => {
+          state.type = 'inactive'
+          state.value = 0
+        }
+      }
+
+      // Act
       const aggregate = createAggregate<TestState, TestCommand, TestEvent>()
         .type('test')
         .decider(testDecider)
@@ -70,12 +70,30 @@ describe('[command] aggregate builder', () => {
 
     test('builds functioning aggregate with decider and reducer maps', () => {
       // Arrange
+      const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+        update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+        deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
+      }
+      const testReducer: Reducer<TestState, TestEvent> = {
+        created: ({ state, event }) => {
+          state.type = 'active'
+          state.id = event.id
+          state.value = event.payload.value
+        },
+        updated: ({ state, event }) => {
+          state.value = event.payload.value
+        },
+        deactivated: ({ state }) => {
+          state.type = 'inactive'
+          state.value = 0
+        }
+      }
       const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
         deactivate: ['active', 'inactive']
       }
-
       const reducerMap: ReducerMap<TestState, TestEvent> = {
         created: [],
         updated: ['active'],
@@ -97,6 +115,25 @@ describe('[command] aggregate builder', () => {
 
     test('builds functioning aggregate with decider map and reducer', () => {
       // Arrange
+      const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+        update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+        deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
+      }
+      const testReducer: Reducer<TestState, TestEvent> = {
+        created: ({ state, event }) => {
+          state.type = 'active'
+          state.id = event.id
+          state.value = event.payload.value
+        },
+        updated: ({ state, event }) => {
+          state.value = event.payload.value
+        },
+        deactivated: ({ state }) => {
+          state.type = 'inactive'
+          state.value = 0
+        }
+      }
       const deciderMap: EventDeciderMap<TestState, TestCommand> = {
         create: [],
         update: ['active'],
@@ -118,6 +155,25 @@ describe('[command] aggregate builder', () => {
 
     test('builds functioning aggregate with decider and reducer map', () => {
       // Arrange
+      const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+        update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+        deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
+      }
+      const testReducer: Reducer<TestState, TestEvent> = {
+        created: ({ state, event }) => {
+          state.type = 'active'
+          state.id = event.id
+          state.value = event.payload.value
+        },
+        updated: ({ state, event }) => {
+          state.value = event.payload.value
+        },
+        deactivated: ({ state }) => {
+          state.type = 'inactive'
+          state.value = 0
+        }
+      }
       const reducerMap: ReducerMap<TestState, TestEvent> = {
         created: [],
         updated: ['active'],
@@ -139,18 +195,35 @@ describe('[command] aggregate builder', () => {
 
     test('created aggregate processes commands correctly', async () => {
       // Arrange
+      const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+        update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+        deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
+      }
+      const testReducer: Reducer<TestState, TestEvent> = {
+        created: ({ state, event }) => {
+          state.type = 'active'
+          state.id = event.id
+          state.value = event.payload.value
+        },
+        updated: ({ state, event }) => {
+          state.value = event.payload.value
+        },
+        deactivated: ({ state }) => {
+          state.type = 'inactive'
+          state.value = 0
+        }
+      }
       const aggregate = createAggregate<TestState, TestCommand, TestEvent>()
         .type('test')
         .decider(testDecider)
         .reducer(testReducer)
         .build()
-
       const command: TestCommand = {
         type: 'create',
         id: { type: 'test', value: '123' },
         payload: { value: 42 }
       }
-
       const mockState: TestState = {
         type: 'active' as const,
         id: { type: 'test', value: '123' },
@@ -173,18 +246,35 @@ describe('[command] aggregate builder', () => {
 
     test('created aggregate processes events correctly', async () => {
       // Arrange
+      const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+        update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+        deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
+      }
+      const testReducer: Reducer<TestState, TestEvent> = {
+        created: ({ state, event }) => {
+          state.type = 'active'
+          state.id = event.id
+          state.value = event.payload.value
+        },
+        updated: ({ state, event }) => {
+          state.value = event.payload.value
+        },
+        deactivated: ({ state }) => {
+          state.type = 'inactive'
+          state.value = 0
+        }
+      }
       const aggregate = createAggregate<TestState, TestCommand, TestEvent>()
         .type('test')
         .decider(testDecider)
         .reducer(testReducer)
         .build()
-
       const event: TestEvent = {
         type: 'created',
         id: { type: 'test', value: '123' },
         payload: { value: 42 }
       }
-
       const initialState: TestState = {
         type: 'inactive' as const,
         id: { type: 'test', value: '123' },
@@ -203,18 +293,35 @@ describe('[command] aggregate builder', () => {
 
     test('preserves state immutability in reducer', () => {
       // Arrange
+      const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+        create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+        update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+        deactivate: ({ command }) => ({ type: 'deactivated', id: command.id })
+      }
+      const testReducer: Reducer<TestState, TestEvent> = {
+        created: ({ state, event }) => {
+          state.type = 'active'
+          state.id = event.id
+          state.value = event.payload.value
+        },
+        updated: ({ state, event }) => {
+          state.value = event.payload.value
+        },
+        deactivated: ({ state }) => {
+          state.type = 'inactive'
+          state.value = 0
+        }
+      }
       const aggregate = createAggregate<TestState, TestCommand, TestEvent>()
         .type('test')
         .decider(testDecider)
         .reducer(testReducer)
         .build()
-
       const event: TestEvent = {
         type: 'updated',
         id: { type: 'test', value: 'immutable' },
         payload: { value: 500 }
       }
-
       const originalState: TestState = {
         type: 'active' as const,
         id: { type: 'test', value: 'immutable' },
@@ -231,4 +338,6 @@ describe('[command] aggregate builder', () => {
       expect(newState).not.toBe(originalState)
     })
   })
+
+  describe('helpers', () => {})
 })

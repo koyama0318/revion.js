@@ -4,7 +4,7 @@ import { createInitEventFnFactory } from '../../../src/command/fn/init-event'
 import { counter, counter2 } from '../../fixtures'
 import type { CounterCommand } from '../../fixtures/counter-app/features/counter/types'
 
-describe('[command] init event function', () => {
+describe('[command] init event', () => {
   describe('createInitEventFnFactory', () => {
     test('should return a function when counter aggregate is provided', () => {
       // Act
@@ -91,31 +91,52 @@ describe('[command] init event function', () => {
         expect(res.error.code).toBe('EVENT_DECIDER_ERROR')
       }
     })
-  })
 
-  test('should return a result with an error when the reducer returns an error', async () => {
-    // Arrange
-    const reducerFn = (_: unknown) => {
-      throw new Error('error')
-    }
-    const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn)()
+    test('should return a result with an error when the reducer returns an error', async () => {
+      // Arrange
+      const reducerFn = (_: unknown) => {
+        throw new Error('error')
+      }
+      const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn)()
 
-    const id = zeroId('counter')
-    const command: CounterCommand = {
-      type: 'create',
-      id,
-      payload: { count: 0 }
-    }
+      const id = zeroId('counter')
+      const command: CounterCommand = {
+        type: 'create',
+        id,
+        payload: { count: 0 }
+      }
 
-    // Act
-    const res = await applyEventFn(command)
+      // Act
+      const res = await applyEventFn(command)
 
-    // Assert
-    expect(res).toBeDefined()
-    expect(res.ok).toBe(false)
-    if (!res.ok) {
-      expect(res.error).toBeDefined()
-      expect(res.error.code).toBe('REDUCER_RETURNED_VOID')
-    }
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error).toBeDefined()
+        expect(res.error.code).toBe('REDUCER_RETURNED_VOID')
+      }
+    })
+
+    test('should handle invalid command type for init correctly', async () => {
+      // Arrange
+      const applyEventFn = createInitEventFnFactory(counter.decider, counter.reducer)()
+
+      const id = zeroId('counter')
+      const command: CounterCommand = {
+        type: 'increment',
+        id
+      }
+
+      // Act
+      const res = await applyEventFn(command)
+
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.value.event.type).toBe('incremented')
+      }
+    })
   })
 })

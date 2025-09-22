@@ -7,7 +7,7 @@ import {
 } from '../../../src/command/helpers/aggregate-id'
 import type { AggregateId } from '../../../src/types/core'
 
-describe('[command] aggregate id helper functions', () => {
+describe('aggregate-id', () => {
   describe('id', () => {
     test('creates aggregate ID with specified type and value', () => {
       // Arrange

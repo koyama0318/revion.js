@@ -139,5 +139,137 @@ describe('[command] apply event', () => {
         expect(res.error.code).toBe('REDUCER_RETURNED_VOID')
       }
     })
+
+    test('should handle increment command correctly', () => {
+      // Arrange
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)()
+
+      const id = zeroId('counter')
+      const state: ExtendedState<CounterState> = {
+        type: 'active',
+        id,
+        count: 5,
+        version: 1
+      }
+      const command: CounterCommand = {
+        type: 'increment',
+        id
+      }
+
+      // Act
+      const res = applyEventFn(state, command)
+
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.value.state).toEqual({
+          type: 'active',
+          id,
+          count: 6,
+          version: 2
+        })
+        expect(res.value.event).toEqual({
+          type: 'incremented',
+          id,
+          version: 2,
+          timestamp: expect.any(Date)
+        })
+      }
+    })
+
+    test('should handle decrement command correctly', () => {
+      // Arrange
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)()
+
+      const id = zeroId('counter')
+      const state: ExtendedState<CounterState> = {
+        type: 'active',
+        id,
+        count: 5,
+        version: 1
+      }
+      const command: CounterCommand = {
+        type: 'decrement',
+        id
+      }
+
+      // Act
+      const res = applyEventFn(state, command)
+
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.value.state).toEqual({
+          type: 'active',
+          id,
+          count: 4,
+          version: 2
+        })
+        expect(res.value.event).toEqual({
+          type: 'decremented',
+          id,
+          version: 2,
+          timestamp: expect.any(Date)
+        })
+      }
+    })
+
+    test('should properly increment version number', () => {
+      // Arrange
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)()
+
+      const id = zeroId('counter')
+      const state: ExtendedState<CounterState> = {
+        type: 'active',
+        id,
+        count: 0,
+        version: 5
+      }
+      const command: CounterCommand = {
+        type: 'increment',
+        id
+      }
+
+      // Act
+      const res = applyEventFn(state, command)
+
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.value.state.version).toBe(6)
+        expect(res.value.event.version).toBe(6)
+      }
+    })
+
+    test('should handle edge case with zero count decrement', () => {
+      // Arrange
+      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)()
+
+      const id = zeroId('counter')
+      const state: ExtendedState<CounterState> = {
+        type: 'active',
+        id,
+        count: 0,
+        version: 1
+      }
+      const command: CounterCommand = {
+        type: 'decrement',
+        id
+      }
+
+      // Act
+      const res = applyEventFn(state, command)
+
+      // Assert
+      expect(res).toBeDefined()
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.value.state.count).toBe(-1)
+        expect(res.value.event.type).toBe('decremented')
+      }
+    })
   })
 })

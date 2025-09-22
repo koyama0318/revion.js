@@ -6,7 +6,7 @@ import type { AggregateId, Command } from '../../src/types/core'
 import type { CommandHandler, CommandHandlerMiddleware } from '../../src/types/framework'
 import { counter } from '../fixtures/counter-app/features/counter/counter-aggregate'
 
-describe('[command] command bus functionality', () => {
+describe('command-bus', () => {
   describe('createCommandBus', () => {
     test('creates command bus with minimal configuration', () => {
       // Arrange
@@ -52,7 +52,7 @@ describe('[command] command bus functionality', () => {
     })
   })
 
-  describe('command execution', () => {
+  describe('CommandHandler', () => {
     describe('command validation', () => {
       test('executes valid command successfully', async () => {
         // Arrange

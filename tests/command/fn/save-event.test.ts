@@ -4,7 +4,7 @@ import { createSaveEventFnFactory } from '../../../src/command/fn/save-event'
 import type { ExtendedDomainEvent, ExtendedState, Snapshot } from '../../../src/types/core'
 import type { CounterEvent, CounterState } from '../../fixtures/counter-app/features/counter/types'
 
-describe('[command] save event function', () => {
+describe('[command] save event', () => {
   describe('createSaveEventFnFactory', () => {
     test('should return a function when eventStore is provided', () => {
       // Act
