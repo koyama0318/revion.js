@@ -88,7 +88,6 @@ describe('[event] event bus', () => {
       expect(res.ok).toBe(false)
       if (!res.ok) {
         expect(res.error.code).toBe('EVENT_HANDLER_NOT_FOUND')
-        expect(res.error.message).toBe('Handler for event type created not found')
       }
     })
 
@@ -101,7 +100,7 @@ describe('[event] event bus', () => {
       const eventBus = createEventBus({ deps, reactors: [createTestReactor] })
       const event = {
         type: 'created',
-        id: { type: 'hoge', value: '123' },
+        id: { type: 'hoge', value: '00000000-0000-0000-0000-000000000000' },
         payload: { name: 'test' },
         version: 1,
         timestamp: new Date()

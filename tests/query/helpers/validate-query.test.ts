@@ -18,6 +18,96 @@ describe('[query] validate query helper', () => {
       expect(res.ok).toBe(true)
     })
 
+    test('returns error when query is null', () => {
+      // Arrange
+      const query = null
+
+      // Act
+      const res = validateQuery(query as unknown as Query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY')
+        expect(res.error.message).toBe('Query is not valid')
+      }
+    })
+
+    test('returns error when query is undefined', () => {
+      // Arrange
+      const query = undefined
+
+      // Act
+      const res = validateQuery(query as unknown as Query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY')
+        expect(res.error.message).toBe('Query is not valid')
+      }
+    })
+
+    test('returns error when query is primitive string', () => {
+      // Arrange
+      const query = 'not-an-object'
+
+      // Act
+      const res = validateQuery(query as unknown as Query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY')
+        expect(res.error.message).toBe('Query is not valid')
+      }
+    })
+
+    test('returns error when query is primitive number', () => {
+      // Arrange
+      const query = 42
+
+      // Act
+      const res = validateQuery(query as unknown as Query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY')
+        expect(res.error.message).toBe('Query is not valid')
+      }
+    })
+
+    test('returns error when query is boolean', () => {
+      // Arrange
+      const query = true
+
+      // Act
+      const res = validateQuery(query as unknown as Query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY')
+        expect(res.error.message).toBe('Query is not valid')
+      }
+    })
+
+    test('returns error when query is array', () => {
+      // Arrange
+      const query = [1, 2, 3]
+
+      // Act
+      const res = validateQuery(query as unknown as Query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY')
+        expect(res.error.message).toBe('Query is not valid')
+      }
+    })
+
     test('returns success when query has valid type with payload', () => {
       // Arrange
       const query = {
