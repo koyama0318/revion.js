@@ -4,6 +4,13 @@ import { err, ok } from '../../utils/result'
 import { validateAggregateId } from './aggregate-id'
 
 export function validateCommand(command: Command): Result<void, AppError> {
+  if (!command || typeof command !== 'object' || Array.isArray(command)) {
+    return err({
+      code: 'INVALID_COMMAND',
+      message: 'Command is not valid'
+    })
+  }
+
   const isTypeNotEmpty = command.type && command.type !== ''
   if (!isTypeNotEmpty) {
     return err({

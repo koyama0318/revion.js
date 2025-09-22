@@ -4,6 +4,7 @@ import type { EventBus, EventHandlerDeps } from '../types/framework'
 import type { AppError, AsyncResult } from '../types/utils'
 import { err } from '../utils/result'
 import { createEventHandlers } from './event-handler'
+import { validateEvent } from './helpers/validate-domain-event'
 
 export function createEventBus({
   deps,
@@ -15,11 +16,14 @@ export function createEventBus({
   const handlers = createEventHandlers(deps, reactors)
 
   return async (event: ExtendedDomainEvent<DomainEvent>): AsyncResult<void, AppError> => {
+    const validated = validateEvent(event)
+    if (!validated.ok) return validated
+
     const handler = handlers[event.id.type]
     if (!handler) {
       return err({
         code: 'EVENT_HANDLER_NOT_FOUND',
-        message: `Handler for event type ${event.type} not found`
+        message: `Handler for aggregate type '${event.id.type}' not found (event: ${event.type})`
       })
     }
 
