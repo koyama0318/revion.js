@@ -15,12 +15,7 @@ import { mapToReducerFn } from './mapper/map-to-reducer-fn'
 /**
  * Internal type representing the accumulated values in the builder
  */
-type BuilderValue<
-  S extends State,
-  C extends Command,
-  E extends DomainEvent,
-  D extends Record<string, unknown>
-> = {
+type BuilderValue<S extends State, C extends Command, E extends DomainEvent, D> = {
   type: S['id']['type']
   decider: EventDecider<S, C, E, D> | EventDecider<S, C, E, D, EventDeciderMap<S, C>>
   deciderMap?: EventDeciderMap<S, C>
@@ -42,7 +37,7 @@ export interface IAggregateBuilder<
   S extends State,
   C extends Command,
   E extends DomainEvent,
-  D extends Record<string, unknown>
+  D
 > {
   readonly _state: ST
 
@@ -79,12 +74,9 @@ export interface IAggregateBuilder<
 /**
  * Validates that all required builder values are present
  */
-function isRequiredBuilderValue<
-  S extends State,
-  C extends Command,
-  E extends DomainEvent,
-  D extends Record<string, unknown>
->(value: Partial<BuilderValue<S, C, E, D>>): value is BuilderValue<S, C, E, D> {
+function isRequiredBuilderValue<S extends State, C extends Command, E extends DomainEvent, D>(
+  value: Partial<BuilderValue<S, C, E, D>>
+): value is BuilderValue<S, C, E, D> {
   return value.type !== undefined && value.decider !== undefined && value.reducer !== undefined
 }
 
@@ -111,7 +103,7 @@ export class AggregateBuilder<
   S extends State,
   C extends Command,
   E extends DomainEvent,
-  D extends Record<string, unknown>
+  D
 > {
   // @ts-expect-error: phantom type to enforce state transitions
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: phantom type to enforce state transitions
@@ -194,7 +186,7 @@ export function createAggregate<
   S extends State,
   C extends Command,
   E extends DomainEvent,
-  D extends Record<string, unknown> = Record<string, unknown>
+  D
 >() {
   return new AggregateBuilder<'initial', S, C, E, D>({})
 }

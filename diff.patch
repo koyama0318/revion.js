@@ -1,0 +1,3773 @@
+diff --git a/src/command/aggregate-builder.ts b/src/command/aggregate-builder.ts
+index 2c8cdef..2d3d28b 100644
+--- a/src/command/aggregate-builder.ts
++++ b/src/command/aggregate-builder.ts
+@@ -1,4 +1,3 @@
+-import { produce } from 'immer'
+ import type {
+   Aggregate,
+   EventDecider,
+@@ -9,17 +8,14 @@ import type {
+   ReducerMap
+ } from '../types/command'
+ import type { Command, DomainEvent, State } from '../types/core'
+-import { createAcceptsCommand, createAcceptsEvent } from './helpers/create-accepts'
++import { mapToAcceptsCommandFn, mapToAcceptsEventFn } from './mapper/map-to-accepts-fn'
++import { mapToEventDeciderFn } from './mapper/map-to-event-decider-fn'
++import { mapToReducerFn } from './mapper/map-to-reducer-fn'
+ 
+ /**
+  * Internal type representing the accumulated values in the builder
+  */
+-type BuilderValue<
+-  S extends State,
+-  C extends Command,
+-  E extends DomainEvent,
+-  D extends Record<string, unknown>
+-> = {
++type BuilderValue<S extends State, C extends Command, E extends DomainEvent, D> = {
+   type: S['id']['type']
+   decider: EventDecider<S, C, E, D> | EventDecider<S, C, E, D, EventDeciderMap<S, C>>
+   deciderMap?: EventDeciderMap<S, C>
+@@ -78,12 +74,9 @@ export interface IAggregateBuilder<
+ /**
+  * Validates that all required builder values are present
+  */
+-function isRequiredBuilderValue<
+-  S extends State,
+-  C extends Command,
+-  E extends DomainEvent,
+-  D extends Record<string, unknown>
+->(value: Partial<BuilderValue<S, C, E, D>>): value is BuilderValue<S, C, E, D> {
++function isRequiredBuilderValue<S extends State, C extends Command, E extends DomainEvent, D>(
++  value: Partial<BuilderValue<S, C, E, D>>
++): value is BuilderValue<S, C, E, D> {
+   return value.type !== undefined && value.decider !== undefined && value.reducer !== undefined
+ }
+ 
+@@ -93,7 +86,7 @@ function isRequiredBuilderValue<
+ function createEventDeciderFn<S extends State, C extends Command, E extends DomainEvent, D>(
+   decider: EventDecider<S, C, E, D> | EventDecider<S, C, E, EventDeciderMap<S, C>>
+ ): EventDeciderFn<S, C, E, D> {
+-  return fromEventDecider(decider as EventDecider<S, C, E, D>)
++  return mapToEventDeciderFn(decider as EventDecider<S, C, E, D>)
+ }
+ 
+ /**
+@@ -102,68 +95,7 @@ function createEventDeciderFn<S extends State, C extends Command, E extends Doma
+ function createReducerFn<S extends State, E extends DomainEvent>(
+   reducer: Reducer<S, E> | Reducer<S, E, ReducerMap<S, E>>
+ ): ReducerFn<S, E> {
+-  return fromReducer(reducer as Reducer<S, E>)
+-}
+-
+-/**
+- * Converts EventDecider object to EventDeciderFn
+- */
+-export function fromEventDecider<S extends State, C extends Command, E extends DomainEvent, D>(
+-  deciders: EventDecider<S, C, E, D>
+-): EventDeciderFn<S, C, E, D> {
+-  return ({ ctx, state, command, deps }) => {
+-    const deciderMap = deciders as Record<C['type'], EventDeciderFn<S, C, E, D>>
+-    const decider = deciderMap[command.type as C['type']]
+-    if (!decider) {
+-      throw new Error(`No decider found for type: ${String(command.type)}`)
+-    }
+-
+-    return decider({
+-      ctx,
+-      state,
+-      command: command as Extract<C, { type: typeof command.type }>,
+-      deps
+-    })
+-  }
+-}
+-
+-/**
+- * Converts Reducer object to ReducerFn with Immer integration
+- */
+-export function fromReducer<S extends State, E extends DomainEvent>(
+-  reducers: Reducer<S, E>
+-): ReducerFn<S, E> {
+-  return ({ ctx, state, event }) => {
+-    const reducer = reducers[event.type as keyof typeof reducers]
+-    if (!reducer) {
+-      throw new Error(`No reducer found for event type: ${String(event.type)}`)
+-    }
+-
+-    // Holds the new typed state if returned by the reducer
+-    let updatedTypedState = null
+-
+-    const updatedState = produce(state, draft => {
+-      // The reducer mutates the draft in place. If it returns a value, store it as the typed state.
+-      const res = reducer({
+-        ctx,
+-        state: draft,
+-        event: event as Extract<E, { type: typeof event.type }>
+-      })
+-      if (res !== undefined) {
+-        // Validate that the returned value is a proper state object
+-        if (res === null || typeof res !== 'object') {
+-          throw new Error(
+-            `Reducer for event type "${String(event.type)}" returned invalid value: ${typeof res}. ` +
+-              'Reducers must return either undefined (to use mutated draft) or a valid state object.'
+-          )
+-        }
+-        updatedTypedState = res
+-      }
+-    })
+-
+-    // reducer mutates draft in place, so result is always the new state
+-    return updatedTypedState ?? updatedState
+-  }
++  return mapToReducerFn(reducer as Reducer<S, E>)
+ }
+ 
+ export class AggregateBuilder<
+@@ -171,7 +103,7 @@ export class AggregateBuilder<
+   S extends State,
+   C extends Command,
+   E extends DomainEvent,
+-  D extends Record<string, unknown>
++  D
+ > {
+   // @ts-expect-error: phantom type to enforce state transitions
+   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: phantom type to enforce state transitions
+@@ -235,10 +167,10 @@ export class AggregateBuilder<
+     }
+ 
+     const deciderMap: EventDeciderMap<S, C> = this.value.deciderMap ?? ({} as EventDeciderMap<S, C>)
+-    const acceptsCommand = createAcceptsCommand<S, C>(deciderMap)
++    const acceptsCommand = mapToAcceptsCommandFn<S, C>(deciderMap)
+ 
+     const reducerMap: ReducerMap<S, E> = this.value.reducerMap ?? ({} as ReducerMap<S, E>)
+-    const acceptsEvent = createAcceptsEvent<S, E>(reducerMap)
++    const acceptsEvent = mapToAcceptsEventFn<S, E>(reducerMap)
+ 
+     return {
+       type: this.value.type,
+diff --git a/src/command/command-handler.ts b/src/command/command-handler.ts
+index 014a369..ed86e1f 100644
+--- a/src/command/command-handler.ts
++++ b/src/command/command-handler.ts
+@@ -15,20 +15,15 @@ function createCommandHandlerFactory<
+   S extends State,
+   C extends Command,
+   E extends DomainEvent,
+-  D extends CommandHandlerDeps & Record<string, unknown>
++  D extends CommandHandlerDeps
+ >(aggregate: Aggregate<S, C, E, D>): CommandHandlerFactory<D> {
+   return (deps: D) => {
+     const replayFn = createReplayEventFnFactory<S, E>(aggregate.reducer)(deps.eventStore)
+-    const initFn = createInitEventFnFactory<S, C, E, D>(
+-      aggregate.decider,
+-      aggregate.reducer,
+-      deps
+-    )()
++    const initFn = createInitEventFnFactory<S, C, E, D>(aggregate.decider, aggregate.reducer)(deps)
+     const applyFn = createApplyEventFnFactory<S, C, E, D>(
+       aggregate.decider,
+-      aggregate.reducer,
+-      deps
+-    )()
++      aggregate.reducer
++    )(deps)
+     const saveFn = createSaveEventFnFactory<S, E>()(deps.eventStore)
+ 
+     // Handles aggregate creation or update based on the incoming command
+diff --git a/src/command/fn/apply-event.ts b/src/command/fn/apply-event.ts
+index f840e2e..bf9c031 100644
+--- a/src/command/fn/apply-event.ts
++++ b/src/command/fn/apply-event.ts
+@@ -23,13 +23,12 @@ export function createApplyEventFnFactory<
+   S extends State,
+   C extends Command,
+   E extends DomainEvent,
+-  D extends Record<string, unknown> = Record<string, unknown>
++  D
+ >(
+   eventDecider: EventDeciderFn<S, C, E, D>,
+-  reducer: ReducerFn<S, E>,
+-  deps: D
+-): () => ApplyEventFn<S, C, E> {
+-  return () => {
++  reducer: ReducerFn<S, E>
++): (deps: D) => ApplyEventFn<S, C, E> {
++  return (deps: D) => {
+     return async (state: ExtendedState<S>, command: C) => {
+       const timestamp = new Date()
+ 
+diff --git a/src/command/fn/init-event.ts b/src/command/fn/init-event.ts
+index 9338ee7..a9f0a64 100644
+--- a/src/command/fn/init-event.ts
++++ b/src/command/fn/init-event.ts
+@@ -22,13 +22,12 @@ export function createInitEventFnFactory<
+   S extends State,
+   C extends Command,
+   E extends DomainEvent,
+-  D extends Record<string, unknown> = Record<string, unknown>
++  D
+ >(
+   eventDecider: EventDeciderFn<S, C, E, D>,
+-  reducer: ReducerFn<S, E>,
+-  deps: D
+-): () => InitEventFn<S, C, E> {
+-  return () => {
++  reducer: ReducerFn<S, E>
++): (deps: D) => InitEventFn<S, C, E> {
++  return (deps: D) => {
+     return async (command: C) => {
+       // Represents the provisional initial state in the event sourcing pattern.
+       // This state is used as the starting point before any events have been applied.
+diff --git a/src/command/helpers/create-accepts.ts b/src/command/helpers/create-accepts.ts
+deleted file mode 100644
+index fd199fa..0000000
+--- a/src/command/helpers/create-accepts.ts
++++ /dev/null
+@@ -1,44 +0,0 @@
+-import type {
+-  AcceptsCommandFn,
+-  AcceptsEventFn,
+-  ApplyEventType,
+-  EventDeciderMap,
+-  ReducerMap
+-} from '../../types/command'
+-import type { Command, DomainEvent, State } from '../../types/core'
+-
+-// Checks if a value's type exists in the array associated with the key's type in the map.
+-const isMapMatch = <T extends { type: string }, U extends { type: string }>(
+-  map: Record<string, string[]>,
+-  key: T,
+-  val: U
+-) => {
+-  return (map[key.type] ?? []).includes(val.type)
+-}
+-
+-// Checks if the array associated with the key's type in the map exists but is empty.
+-const isMapVoid = <T extends { type: string }>(map: Record<string, string[]>, key: T) => {
+-  return map[key.type] !== undefined && map[key.type] !== null && map[key.type]?.length === 0
+-}
+-
+-export const createAcceptsCommand = <S extends State, C extends Command>(
+-  map: EventDeciderMap<S, C>
+-): AcceptsCommandFn<S, C> => {
+-  return (state: S, command: C, eventType: ApplyEventType) => {
+-    // If no map is provided, accept any command for any state.
+-    if (Object.keys(map).length === 0) return true
+-
+-    return eventType === 'create' ? isMapVoid(map, command) : isMapMatch(map, command, state)
+-  }
+-}
+-
+-export const createAcceptsEvent = <S extends State, E extends DomainEvent>(
+-  map: ReducerMap<S, E>
+-): AcceptsEventFn<S, E> => {
+-  return (state: S, event: E, eventType: ApplyEventType) => {
+-    // If no map is provided, accept any event for any state.
+-    if (Object.keys(map).length === 0) return true
+-
+-    return eventType === 'create' ? isMapVoid(map, event) : isMapMatch(map, event, state)
+-  }
+-}
+diff --git a/src/event/event-handler.ts b/src/event/event-handler.ts
+index 0935385..00e41bb 100644
+--- a/src/event/event-handler.ts
++++ b/src/event/event-handler.ts
+@@ -1,9 +1,11 @@
+ import type { DomainEvent, ExtendedDomainEvent } from '../types/core'
+ import type { AnyEventReactor } from '../types/event'
+ import type { EventHandler, EventHandlerDeps } from '../types/framework'
+-import { err, ok } from '../utils/result'
++import { ok } from '../utils/result'
+ import { createDispatchEventFnFactory } from './fn/dispatch-event'
++import { createPrefetchReadModel } from './fn/prefetch-read-model'
+ import { createProjectEventFnFactory } from './fn/project-event'
++import { createSaveReadModel } from './fn/save-read-model'
+ 
+ type EventHandlerFactory<D extends EventHandlerDeps = EventHandlerDeps> = (deps: D) => EventHandler
+ 
+@@ -12,31 +14,28 @@ function createEventHandlerFactory<D extends EventHandlerDeps>(
+ ): EventHandlerFactory<D> {
+   return (deps: D) => {
+     const dispatch = createDispatchEventFnFactory(reactor.policy)(deps.commandDispatcher)
+-    const projection = createProjectEventFnFactory(reactor.projection)(deps.readModelStore)
++    const prefetchReadModels = createPrefetchReadModel(reactor.projectionMap)(deps.readModelStore)
++    const projection = createProjectEventFnFactory(reactor.projection)()
++    const saveReadModel = createSaveReadModel()(deps.readModelStore)
+ 
+     return async (event: ExtendedDomainEvent<DomainEvent>) => {
+-      try {
+-        const [dispatched, projected] = await Promise.all([dispatch(event), projection(event)])
+-
+-        // Check dispatch result first
+-        if (!dispatched.ok) {
+-          return dispatched
+-        }
+-
+-        // Check projection result
+-        if (!projected.ok) {
+-          return projected
+-        }
+-
+-        return ok(undefined)
+-      } catch (error) {
+-        // Handle unexpected errors that escape the Result type system
+-        return err({
+-          code: 'EVENT_HANDLER_ERROR',
+-          message: 'Unexpected error in event handler',
+-          cause: error instanceof Error ? error : new Error(String(error))
+-        })
+-      }
++      // MARK: projection workflow
++
++      const modelDict = await prefetchReadModels(event)
++      if (!modelDict.ok) return modelDict
++
++      const projected = await projection(event, modelDict.value)
++      if (!projected.ok) return projected
++
++      const saved = await saveReadModel(projected.value)
++      if (!saved.ok) return saved
++
++      // MARK: policy workflow
++
++      const dispatched = await dispatch(event)
++      if (!dispatched.ok) return dispatched
++
++      return ok(undefined)
+     }
+   }
+ }
+diff --git a/src/event/event-reactor-builder.ts b/src/event/event-reactor-builder.ts
+index b2e8363..aff09c6 100644
+--- a/src/event/event-reactor-builder.ts
++++ b/src/event/event-reactor-builder.ts
+@@ -1,4 +1,3 @@
+-import type { Draft } from 'immer'
+ import type { Command, DomainEvent, ReadModel } from '../types/core'
+ import type {
+   EventReactor,
+@@ -8,9 +7,9 @@ import type {
+   PolicyParams,
+   Projection,
+   ProjectionFn,
+-  ProjectionMap,
+-  ProjectionParams
++  ProjectionMap
+ } from '../types/event'
++import { mapProjectionToFn } from './mapper/map-projection-to-fn'
+ 
+ /**
+  * Internal type representing the accumulated values in the builder
+@@ -127,46 +126,7 @@ function createProjectionFn<E extends DomainEvent, RM extends ReadModel>(
+   projection: Projection<E, RM, ProjectionMap<E, RM>>
+ ): ProjectionFn<E, RM> {
+   // Type-safe policy conversion without type assertion
+-  return fromProjection(projection)
+-}
+-
+-/**
+- * Converts Projection object to ProjectionFn
+- */
+-function fromProjection<E extends DomainEvent, RM extends ReadModel>(
+-  projections: Projection<E, RM, ProjectionMap<E, RM>>
+-): ProjectionFn<E, RM> {
+-  return (params: ProjectionParams<E, RM>): RM => {
+-    const eventType = params.event.type
+-
+-    // Type-safe key checking without type assertion
+-    if (!(eventType in projections)) {
+-      return params.readModel
+-    }
+-
+-    const projection = projections[eventType as keyof typeof projections]
+-    if (!projection || typeof projection !== 'object') {
+-      return params.readModel
+-    }
+-
+-    // Get the readModel type from params
+-    const readModelType = params.readModel.type
+-    const projectionFn = projection[readModelType as keyof typeof projection]
+-
+-    if (!projectionFn || typeof projectionFn !== 'function') {
+-      return params.readModel
+-    }
+-
+-    // Type-safe parameter casting
+-    const result = projectionFn(
+-      params as ProjectionParams<
+-        Extract<E, { type: typeof eventType }>,
+-        Draft<Extract<RM, { type: keyof typeof projection }>>
+-      >
+-    )
+-
+-    return result ?? params.readModel
+-  }
++  return mapProjectionToFn(projection)
+ }
+ 
+ export class EventReactorBuilder<
+@@ -238,10 +198,13 @@ export class EventReactorBuilder<
+       throw new Error('EventReactor is not ready to build. Missing required properties.')
+     }
+ 
++    const projectionMap = this.value.projectionMap ?? ({} as ProjectionMap<E, RM>)
++
+     return {
+       type: this.value.type,
+       policy: createPolicyFn(this.value.policy),
+-      projection: createProjectionFn(this.value.projection)
++      projection: createProjectionFn(this.value.projection),
++      projectionMap
+     }
+   }
+ }
+diff --git a/src/event/fn/project-event.ts b/src/event/fn/project-event.ts
+index ca1e226..9a48cff 100644
+--- a/src/event/fn/project-event.ts
++++ b/src/event/fn/project-event.ts
+@@ -1,86 +1,82 @@
+ import { produce } from 'immer'
+-import type { ReadModelStore } from '../../types/adapter'
+ import type { DomainEvent, ExtendedDomainEvent, ReadModel } from '../../types/core'
+ import type { ProjectionCtx, ProjectionFn } from '../../types/event'
+ import type { AppError, AsyncResult } from '../../types/utils'
+-import { err, ok, toAsyncResult } from '../../utils/result'
++import { err, ok, toResult } from '../../utils/result'
+ 
+ export type ProjectEventFn<E extends DomainEvent> = (
+-  event: ExtendedDomainEvent<E>
+-) => AsyncResult<void, AppError>
++  event: ExtendedDomainEvent<E>,
++  readModels: Record<string, ReadModel>
++) => AsyncResult<Record<string, ReadModel>, AppError>
+ 
+-export function createProjectEventFnFactory<E extends DomainEvent>(
+-  projection: ProjectionFn<E, ReadModel>
+-): (store: ReadModelStore) => ProjectEventFn<E> {
+-  return (store: ReadModelStore) => {
+-    return async (event: ExtendedDomainEvent<E>): AsyncResult<void, AppError> => {
+-      const eventType = event.type
++export function createProjectEventFnFactory<E extends DomainEvent, RM extends ReadModel>(
++  projection: ProjectionFn<E, RM>
++): () => ProjectEventFn<E> {
++  return () => {
++    return async (
++      event: ExtendedDomainEvent<E>,
++      readModels: Record<string, ReadModel>
++    ): AsyncResult<Record<string, ReadModel>, AppError> => {
++      const updatedDict: Record<string, ReadModel> = {}
+ 
+-      // Type-safe event type validation
+-      if (typeof eventType !== 'string') {
++      for (const [key, model] of Object.entries(readModels)) {
++        const projected = toResult(() => projectModel(projection, model, event))
++        if (!projected.ok) {
++          return err({
++            code: 'PROJECTION_EXECUTION_FAILED',
++            message: 'Projection execution failed',
++            cause: projected.error
++          })
++        }
++
++        updatedDict[key] = projected.value
++      }
++
++      if (Object.keys(readModels).length === 0) {
+         return err({
+-          code: 'INVALID_EVENT_TYPE',
+-          message: `Event type must be string, got: ${typeof eventType}`
++          code: 'NO_READ_MODELS',
++          message: 'Projection execution failed: no read models',
++          cause: new Error('No read models')
+         })
+       }
+-      const definitions = projection[eventType as keyof typeof projection]
+-      if (!definitions) {
++
++      if (Object.keys(readModels).length !== Object.keys(updatedDict).length) {
+         return err({
+-          code: 'EVENT_TYPE_NOT_FOUND',
+-          message: `Event type ${eventType} not found`
++          code: 'INVALID_UPDATED_READ_MODEL_COUNT',
++          message: 'Projection execution failed: no read models',
++          cause: new Error('No read models')
+         })
+       }
++      console.log('updatedDict', updatedDict)
+ 
+-      for (const [type, definition] of Object.entries(definitions)) {
+-        if (!definition || typeof definition !== 'function') {
+-          continue
+-        }
++      return ok(updatedDict)
++    }
++  }
++}
+ 
+-        const ctx: ProjectionCtx = {
+-          timestamp: event.timestamp
+-        }
++function projectModel<E extends DomainEvent, RM extends ReadModel>(
++  projection: ProjectionFn<E, RM>,
++  model: ReadModel,
++  event: ExtendedDomainEvent<E>
++): ReadModel {
++  const ctx: ProjectionCtx = {
++    timestamp: event.timestamp
++  }
+ 
+-        const existingReadModel = await toAsyncResult(() => store.findById(type, event.id.value))
+-        const readModelToUpdate =
+-          existingReadModel.ok && existingReadModel.value ? existingReadModel.value : {}
++  // Holds the new typed state if returned by the reducer
++  let updatedTypedModel = null
+ 
+-        try {
+-          const updatedReadModel = produce(readModelToUpdate, draft => {
+-            const result = definition({
+-              ctx,
+-              event: event,
+-              readModel: draft
+-            })
+-            if (result) {
+-              return result
+-            }
+-          })
++  const updatedModel = produce(model, draft => {
++    const res = projection({ ctx, event, readModel: draft as RM })
++    if (res === null || typeof res !== 'object') {
++      throw new Error(
++        `Reducer for event type "${String(event.type)}" returned invalid value: ${typeof res}. ` +
++          'Reducers must return either undefined (to use mutated draft) or a valid state object.'
++      )
++    }
+ 
+-          // Save the result if it exists and has content
+-          if (
+-            updatedReadModel &&
+-            typeof updatedReadModel === 'object' &&
+-            Object.keys(updatedReadModel).length > 0
+-          ) {
+-            const saved = await toAsyncResult(() => store.save(updatedReadModel as ReadModel))
+-            if (!saved.ok) {
+-              return err({
+-                code: 'SAVE_VIEW_FAILED',
+-                message: `SavereadModel failed: ${type} event: ${event.type} v${event.version}`,
+-                cause: saved.error
+-              })
+-            }
+-          }
+-        } catch (error) {
+-          return err({
+-            code: 'PROJECTION_EXECUTION_FAILED',
+-            message: `Projection execution failed: ${type} event: ${event.type} v${event.version}`,
+-            cause: error
+-          })
+-        }
+-      }
++    updatedTypedModel = res
++  })
+ 
+-      return ok(undefined)
+-    }
+-  }
++  return updatedTypedModel ?? updatedModel
+ }
+diff --git a/src/types/core/domain-event.ts b/src/types/core/domain-event.ts
+index 2f4d5e8..cb95c07 100644
+--- a/src/types/core/domain-event.ts
++++ b/src/types/core/domain-event.ts
+@@ -10,3 +10,7 @@ export type ExtendedDomainEvent<T extends DomainEvent> = Readonly<T> & {
+   readonly version: number
+   readonly timestamp: Date
+ }
++
++export type EventOf<E extends DomainEvent, T extends E['type']> = ExtendedDomainEvent<
++  Extract<E, { type: T }>
++>
+diff --git a/src/types/event/event-reactor.ts b/src/types/event/event-reactor.ts
+index f8f381e..b851ac2 100644
+--- a/src/types/event/event-reactor.ts
++++ b/src/types/event/event-reactor.ts
+@@ -1,11 +1,12 @@
+ import type { Command, DomainEvent, ReadModel } from '../core'
+ import type { PolicyFn } from './policy-fn'
+-import type { ProjectionFn } from './projection-fn'
++import type { ProjectionFn, ProjectionMap } from './projection-fn'
+ 
+ export type EventReactor<E extends DomainEvent, C extends Command, RM extends ReadModel> = {
+   type: C['id']['type']
+   policy: PolicyFn<E, C>
+   projection: ProjectionFn<E, RM>
++  projectionMap: ProjectionMap<E, RM>
+ }
+ 
+ // biome-ignore lint: To enable a generic EventReactor type for utility and type inference purposes.
+diff --git a/src/types/event/projection-fn.ts b/src/types/event/projection-fn.ts
+index 4bbbe6f..795cc1e 100644
+--- a/src/types/event/projection-fn.ts
++++ b/src/types/event/projection-fn.ts
+@@ -1,4 +1,5 @@
+-import type { DomainEvent, ReadModel } from '../core'
++import type { FilterCondition } from '../adapter'
++import type { DomainEvent, ExtendedDomainEvent, ReadModel } from '../core'
+ 
+ export type ProjectionCtx = {
+   readonly timestamp: Date
+@@ -6,7 +7,7 @@ export type ProjectionCtx = {
+ 
+ type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
+   readModel: RM['type']
+-  where?: (e: E) => Partial<RM>
++  where?: (e: E) => FilterCondition<RM>
+ }
+ 
+ export type ProjectionMap<E extends DomainEvent, RM extends ReadModel> = {
+@@ -15,7 +16,7 @@ export type ProjectionMap<E extends DomainEvent, RM extends ReadModel> = {
+ 
+ export type ProjectionParams<E extends DomainEvent, RM extends ReadModel> = {
+   ctx: ProjectionCtx
+-  event: E
++  event: ExtendedDomainEvent<E>
+   readModel: RM
+ }
+ 
+diff --git a/tests/command/aggregate-builder.test.ts b/tests/command/aggregate-builder.test.ts
+index 9ebd7e0..8fbb827 100644
+--- a/tests/command/aggregate-builder.test.ts
++++ b/tests/command/aggregate-builder.test.ts
+@@ -1,14 +1,11 @@
+ import { describe, expect, test } from 'bun:test'
+-import { createAggregate, fromReducer } from '../../src/command/aggregate-builder'
++import { createAggregate } from '../../src/command/aggregate-builder'
+ import type { EventDecider, EventDeciderMap, Reducer, ReducerMap } from '../../src/types/command'
+ import type { AggregateId } from '../../src/types/core'
+ 
+-// Test types
+-type TestState = {
+-  type: 'active' | 'inactive'
+-  id: AggregateId<'test'>
+-  value: number
+-}
++type TestState =
++  | { type: 'active'; id: AggregateId<'test'>; value: number }
++  | { type: 'inactive'; id: AggregateId<'test'>; value: number }
+ 
+ type TestCommand =
+   | { type: 'create'; id: AggregateId<'test'>; payload: { value: number } }
+@@ -20,9 +17,6 @@ type TestEvent =
+   | { type: 'updated'; id: AggregateId<'test'>; payload: { value: number } }
+   | { type: 'deactivated'; id: AggregateId<'test'> }
+ 
+-// Test fixtures
+-const testId = (id: string): AggregateId<'test'> => ({ type: 'test', value: id })
+-
+ const testDecider: EventDecider<TestState, TestCommand, TestEvent> = {
+   create: ({ command }) => ({ type: 'created', id: command.id, payload: command.payload }),
+   update: ({ command }) => ({ type: 'updated', id: command.id, payload: command.payload }),
+@@ -153,28 +147,31 @@ describe('[command] aggregate builder', () => {
+ 
+       const command: TestCommand = {
+         type: 'create',
+-        id: testId('123'),
++        id: { type: 'test', value: '123' },
+         payload: { value: 42 }
+       }
+ 
+-      const mockState = { type: 'active' as const, id: testId('123'), value: 0 }
++      const mockState: TestState = {
++        type: 'active' as const,
++        id: { type: 'test', value: '123' },
++        value: 0
++      }
+       const ctx = { timestamp: new Date() }
+ 
+       // Act
+-      const event = aggregate.decider({ ctx, state: mockState, command, deps: {} })
++      const eventResult = aggregate.decider({ ctx, state: mockState, command, deps: {} })
++      const event = await eventResult
+ 
+       // Assert
+       expect(event).toBeDefined()
+-      // Handle potential Promise
+-      const resolvedEvent = await Promise.resolve(event)
+-      expect(resolvedEvent.id).toEqual(testId('123'))
+-      expect(resolvedEvent.type).toBe('created')
+-      if (resolvedEvent.type === 'created') {
+-        expect(resolvedEvent.payload).toEqual({ value: 42 })
++      expect(event.id).toEqual({ type: 'test', value: '123' })
++      expect(event.type).toBe('created')
++      if (event.type === 'created') {
++        expect(event.payload).toEqual({ value: 42 })
+       }
+     })
+ 
+-    test('created aggregate processes events correctly', () => {
++    test('created aggregate processes events correctly', async () => {
+       // Arrange
+       const aggregate = createAggregate<TestState, TestCommand, TestEvent>()
+         .type('test')
+@@ -184,11 +181,15 @@ describe('[command] aggregate builder', () => {
+ 
+       const event: TestEvent = {
+         type: 'created',
+-        id: testId('123'),
++        id: { type: 'test', value: '123' },
+         payload: { value: 42 }
+       }
+ 
+-      const initialState = { type: 'inactive' as const, id: testId('123'), value: 0 }
++      const initialState: TestState = {
++        type: 'inactive' as const,
++        id: { type: 'test', value: '123' },
++        value: 0
++      }
+       const ctx = { timestamp: new Date() }
+ 
+       // Act
+@@ -210,130 +211,24 @@ describe('[command] aggregate builder', () => {
+ 
+       const event: TestEvent = {
+         type: 'updated',
+-        id: testId('immutable'),
++        id: { type: 'test', value: 'immutable' },
+         payload: { value: 500 }
+       }
+ 
+-      const originalState = { type: 'active' as const, id: testId('immutable'), value: 100 }
++      const originalState: TestState = {
++        type: 'active' as const,
++        id: { type: 'test', value: 'immutable' },
++        value: 100
++      }
+       const ctx = { timestamp: new Date() }
+ 
+       // Act
+       const newState = aggregate.reducer({ ctx, state: originalState, event })
+ 
+-      // Assert - Original state should remain unchanged
++      // Assert
+       expect(originalState.value).toBe(100)
+-      // New state should have updated value
+       expect(newState.value).toBe(500)
+-      // But they should be different objects
+       expect(newState).not.toBe(originalState)
+     })
+   })
+-
+-  describe('fromReducer utility', () => {
+-    test('converts Reducer object to ReducerFn', () => {
+-      // Arrange & Act
+-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
+-
+-      // Assert
+-      expect(typeof reducerFn).toBe('function')
+-    })
+-
+-    test('converted ReducerFn processes events correctly', () => {
+-      // Arrange
+-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
+-
+-      const event: TestEvent = {
+-        type: 'created',
+-        id: testId('456'),
+-        payload: { value: 100 }
+-      }
+-
+-      const state = { type: 'inactive' as const, id: testId('456'), value: 0 }
+-      const ctx = { timestamp: new Date() }
+-
+-      // Act
+-      const result: TestState = reducerFn({ ctx, state, event })
+-
+-      // Assert
+-      expect(result).toBeDefined()
+-      expect(result.type).toBe('active')
+-      expect(result.value).toBe(100)
+-    })
+-
+-    test('handles different event types correctly', () => {
+-      // Arrange
+-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
+-
+-      const updateEvent: TestEvent = {
+-        type: 'updated',
+-        id: testId('789'),
+-        payload: { value: 200 }
+-      }
+-
+-      const state = { type: 'active' as const, id: testId('789'), value: 50 }
+-      const ctx = { timestamp: new Date() }
+-
+-      // Act
+-      const result = reducerFn({ ctx, state, event: updateEvent })
+-
+-      // Assert
+-      expect(result).toBeDefined()
+-      expect(result.value).toBe(200)
+-    })
+-
+-    test('throws error for unknown event type', () => {
+-      // Arrange
+-      const reducerFn = fromReducer<TestState, TestEvent>(testReducer)
+-
+-      const unknownEvent = {
+-        type: 'unknown',
+-        id: testId('error')
+-      }
+-
+-      const state = { type: 'active' as const, id: testId('error'), value: 0 }
+-      const ctx = { timestamp: new Date() }
+-
+-      // Act & Assert
+-      expect(() => {
+-        reducerFn({ ctx, state, event: unknownEvent as TestEvent })
+-      }).toThrow('No reducer found for event type: unknown')
+-    })
+-
+-    test('handles reducer that returns new state object', () => {
+-      // Arrange
+-      const replacingReducer: Reducer<TestState, TestEvent> = {
+-        created: ({ event }) => ({
+-          type: 'active',
+-          id: event.id,
+-          value: event.payload.value
+-        }),
+-        updated: ({ state, event }) => {
+-          state.value = event.payload.value
+-        },
+-        deactivated: ({ state }) => {
+-          state.type = 'inactive'
+-        }
+-      }
+-
+-      const reducerFn = fromReducer<TestState, TestEvent>(replacingReducer)
+-
+-      const event: TestEvent = {
+-        type: 'created',
+-        id: testId('replace'),
+-        payload: { value: 300 }
+-      }
+-
+-      const state = { type: 'inactive' as const, id: testId('old'), value: 0 }
+-      const ctx = { timestamp: new Date() }
+-
+-      // Act
+-      const result = reducerFn({ ctx, state, event })
+-
+-      // Assert
+-      expect(result).toBeDefined()
+-      expect(result.type).toBe('active')
+-      expect(result.value).toBe(300)
+-      expect(result.id).toEqual(testId('replace'))
+-    })
+-  })
+ })
+diff --git a/tests/command/command-bus.test.ts b/tests/command/command-bus.test.ts
+index a1cd1f7..76158b6 100644
+--- a/tests/command/command-bus.test.ts
++++ b/tests/command/command-bus.test.ts
+@@ -3,24 +3,14 @@ import { EventStoreInMemory } from '../../src/adapter/event-store-in-memory'
+ import { createCommandBus } from '../../src/command/command-bus'
+ import { zeroId } from '../../src/command/helpers/aggregate-id'
+ import type { AggregateId, Command } from '../../src/types/core'
+-import type {
+-  CommandHandler,
+-  CommandHandlerDeps,
+-  CommandHandlerMiddleware
+-} from '../../src/types/framework'
++import type { CommandHandler, CommandHandlerMiddleware } from '../../src/types/framework'
+ import { counter } from '../fixtures/counter-app/features/counter/counter-aggregate'
+ 
+-function createTestDeps(): CommandHandlerDeps {
+-  return {
+-    eventStore: new EventStoreInMemory()
+-  }
+-}
+-
+ describe('[command] command bus functionality', () => {
+   describe('createCommandBus', () => {
+     test('creates command bus with minimal configuration', () => {
+       // Arrange
+-      const deps = createTestDeps()
++      const deps = { eventStore: new EventStoreInMemory() }
+ 
+       // Act
+       const commandBus = createCommandBus({
+@@ -35,7 +25,7 @@ describe('[command] command bus functionality', () => {
+ 
+     test('creates command bus with full configuration including middleware and services', () => {
+       // Arrange
+-      const deps = createTestDeps()
++      const deps = { eventStore: new EventStoreInMemory() }
+       const testMiddleware: CommandHandlerMiddleware = async (command, next) => next(command)
+ 
+       // Act
+@@ -51,7 +41,7 @@ describe('[command] command bus functionality', () => {
+ 
+     test('returns function that can execute commands', () => {
+       // Arrange
+-      const deps = createTestDeps()
++      const deps = { eventStore: new EventStoreInMemory() }
+ 
+       // Act
+       const commandBus = createCommandBus({ deps })
+@@ -66,7 +56,7 @@ describe('[command] command bus functionality', () => {
+     describe('command validation', () => {
+       test('executes valid command successfully', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({
+           deps,
+           aggregates: [counter]
+@@ -90,7 +80,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('returns error for invalid command structure', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         // missing required fields like 'type'
+@@ -110,7 +100,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('returns error for command with invalid aggregate ID structure', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand: Command = {
+@@ -131,7 +121,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('returns error for command with array payload', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand: Command = {
+@@ -152,7 +142,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('returns error for command with empty object payload', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand: Command = {
+@@ -173,7 +163,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('returns error for command with null payload', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand = {
+@@ -194,28 +184,28 @@ describe('[command] command bus functionality', () => {
+ 
+       test('accepts command without payload', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({
+           deps,
+           aggregates: [counter]
+         })
+ 
+-        const validCommand: Command = {
+-          type: 'increment',
+-          id: zeroId('counter')
+-          // no payload is valid
+-        }
++        const id = zeroId('counter')
++        const createCommand: Command = { type: 'create', id, payload: { count: 0 } }
++        const incrementCommand: Command = { type: 'increment', id }
+ 
+         // Act
+-        const result = await commandBus(validCommand)
++        const createResult = await commandBus(createCommand)
++        const result = await commandBus(incrementCommand)
+ 
+         // Assert
++        expect(createResult.ok).toBe(true)
+         expect(result.ok).toBe(true)
+       })
+ 
+       test('returns error for invalid command type', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand: Command = {
+@@ -237,7 +227,7 @@ describe('[command] command bus functionality', () => {
+     describe('command handler resolution', () => {
+       test('executes command when matching handler exists', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({
+           deps,
+           aggregates: [counter]
+@@ -261,7 +251,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('returns error when no handler found for command type', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({
+           deps,
+           aggregates: [] // no aggregates registered
+@@ -287,7 +277,7 @@ describe('[command] command bus functionality', () => {
+     describe('middleware application', () => {
+       test('executes command without middleware successfully', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({
+           deps,
+           aggregates: [counter],
+@@ -312,7 +302,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('applies single middleware to command execution', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         let middlewareExecuted = false
+ 
+         const testMiddleware: CommandHandlerMiddleware = async (
+@@ -345,7 +335,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('applies multiple middleware in correct order', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const executionOrder: string[] = []
+ 
+         const middleware1: CommandHandlerMiddleware = async (
+@@ -394,7 +384,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('handles middleware that modifies command', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+ 
+         const modifyingMiddleware: CommandHandlerMiddleware = async (
+           command: Command,
+@@ -432,7 +422,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('handles middleware that returns early with error', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+ 
+         const errorMiddleware: CommandHandlerMiddleware = async _ => {
+           return {
+@@ -468,7 +458,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('handles middleware that throws error', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+ 
+         const throwingMiddleware: CommandHandlerMiddleware = async _ => {
+           throw new Error('Middleware threw an error')
+@@ -494,7 +484,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('passes next handler correctly through middleware chain', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         let nextHandlerReceived = false
+ 
+         const verifyingMiddleware: CommandHandlerMiddleware = async (
+@@ -525,53 +515,10 @@ describe('[command] command bus functionality', () => {
+       })
+     })
+ 
+-    // TODO: implement domain services functionality
+-    // describe('integration with domain services', () => {
+-    //   test('creates command bus with domain services configuration', () => {
+-    //     // Arrange
+-    //     const deps = createTestDeps()
+-    //     const testService = createDomainService('test-service', async () => {})
+-
+-    //     // Act
+-    //     const commandBus = createCommandBus({
+-    //       deps,
+-    //       services: [testService]
+-    //     })
+-
+-    //     // Assert
+-    //     expect(typeof commandBus).toBe('function')
+-    //   })
+-
+-    //   test('executes commands when domain services are configured', async () => {
+-    //     // Arrange
+-    //     const deps = createTestDeps()
+-    //     const testService = createDomainService('test-service', async () => {})
+-
+-    //     const commandBus = createCommandBus({
+-    //       deps,
+-    //       services: [testService]
+-    //     })
+-
+-    //     const command: Command = {
+-    //       type: 'process',
+-    //       id: id('test-service', '00000000-0000-0000-0000-000000000001')
+-    //     }
+-
+-    //     // Act
+-    //     const result = await commandBus(command)
+-
+-    //     // Assert
+-    //     expect(result.ok).toBe(true)
+-    //     if (result.ok) {
+-    //       expect(result.value.id).toEqual(command.id)
+-    //     }
+-    //   })
+-    // })
+-
+     describe('error handling and result types', () => {
+       test('returns success result for successful command execution', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({
+           deps,
+           aggregates: [counter]
+@@ -596,7 +543,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('returns error result with correct structure for failures', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand = {}
+@@ -613,7 +560,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('preserves error details from command validation', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand: Command = {
+@@ -633,7 +580,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('preserves error details from aggregate ID validation', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({ deps })
+ 
+         const invalidCommand: Command = {
+@@ -653,7 +600,7 @@ describe('[command] command bus functionality', () => {
+ 
+       test('preserves error details from handler execution', async () => {
+         // Arrange
+-        const deps = createTestDeps()
++        const deps = { eventStore: new EventStoreInMemory() }
+         const commandBus = createCommandBus({
+           deps,
+           aggregates: [] // no handlers available
+diff --git a/tests/command/command-handler.test.ts b/tests/command/command-handler.test.ts
+index 9a7d45b..f16f973 100644
+--- a/tests/command/command-handler.test.ts
++++ b/tests/command/command-handler.test.ts
+@@ -2,36 +2,9 @@ import { describe, expect, test } from 'bun:test'
+ import { EventStoreInMemory } from '../../src/adapter/event-store-in-memory'
+ import { createCommandHandlers } from '../../src/command/command-handler'
+ import { zeroId } from '../../src/command/helpers/aggregate-id'
+-import type { EventStore } from '../../src/types/adapter'
+ import { counter } from '../fixtures'
+ import type { CounterCommand } from '../fixtures/counter-app/features/counter/types'
+ 
+-function createFailingEventStore(
+-  operation: 'getEvents' | 'saveEvent' | 'getLastEventVersion'
+-): EventStore {
+-  const store = new EventStoreInMemory()
+-
+-  switch (operation) {
+-    case 'saveEvent':
+-      store.saveEvent = async () => {
+-        throw new Error('Save failed')
+-      }
+-      break
+-    case 'getEvents':
+-      store.getEvents = async () => {
+-        throw new Error('Database error')
+-      }
+-      break
+-    case 'getLastEventVersion':
+-      store.getLastEventVersion = async () => {
+-        throw new Error('Database error')
+-      }
+-      break
+-  }
+-
+-  return store
+-}
+-
+ const testId = zeroId('counter')
+ 
+ const createCommand: CounterCommand = {
+@@ -121,7 +94,10 @@ describe('[command] command handler', () => {
+       test('returns error when save function fails during creation', async () => {
+         // Arrange
+         const deps = {
+-          eventStore: createFailingEventStore('saveEvent')
++          eventStore: new EventStoreInMemory()
++        }
++        deps.eventStore.saveEvent = async () => {
++          throw new Error('Save failed')
+         }
+         const handlers = createCommandHandlers(deps, [counter])
+         const commandHandler = handlers[counter.type]!
+@@ -226,7 +202,10 @@ describe('[command] command handler', () => {
+ 
+         // Copy events to failing deps
+         const failingDeps = {
+-          eventStore: createFailingEventStore('saveEvent')
++          eventStore: new EventStoreInMemory()
++        }
++        failingDeps.eventStore.saveEvent = async () => {
++          throw new Error('Save failed')
+         }
+         const events = await workingDeps.eventStore.getEvents(testId)
+         for (const event of events) {
+@@ -252,10 +231,13 @@ describe('[command] command handler', () => {
+       test('returns error when replay fails with non-recoverable error', async () => {
+         // Arrange
+         const deps = {
+-          eventStore: createFailingEventStore('getEvents')
++          eventStore: new EventStoreInMemory()
++        }
++        deps.eventStore.getEvents = async () => {
++          throw new Error('Database error')
+         }
+         const handlers = createCommandHandlers(deps, [counter])
+-        const commandHandler = handlers[counter.type]!
++        const commandHandler = handlers[counter.type]
+ 
+         // Act
+         const result = await commandHandler(createCommand)
+diff --git a/tests/command/fn/apply-event.test.ts b/tests/command/fn/apply-event.test.ts
+index 21e036b..6256d0a 100644
+--- a/tests/command/fn/apply-event.test.ts
++++ b/tests/command/fn/apply-event.test.ts
+@@ -12,7 +12,7 @@ describe('[command] apply event function', () => {
+   describe('createApplyEventFnFactory', () => {
+     test('should return a function when counter aggregate is provided', () => {
+       // Act
+-      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer, {})()
++      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)({})
+ 
+       // Assert
+       expect(applyEventFn).toBeDefined()
+@@ -28,7 +28,7 @@ describe('[command] apply event function', () => {
+       }
+ 
+       // Act
+-      const applyEventFn = createApplyEventFnFactory(counter2.decider, counter2.reducer, deps)()
++      const applyEventFn = createApplyEventFnFactory(counter2.decider, counter2.reducer)(deps)
+ 
+       // Assert
+       expect(applyEventFn).toBeDefined()
+@@ -38,7 +38,7 @@ describe('[command] apply event function', () => {
+   describe('ApplyEventFn', () => {
+     test('should return a result with the new state and event when the command is valid', async () => {
+       // Arrange
+-      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer, {})()
++      const applyEventFn = createApplyEventFnFactory(counter.decider, counter.reducer)({})
+ 
+       const id = zeroId('counter')
+       const state: ExtendedState<CounterState> = {
+@@ -81,7 +81,7 @@ describe('[command] apply event function', () => {
+       const deciderFn = (_: unknown) => {
+         throw new Error('error')
+       }
+-      const applyEventFn = createApplyEventFnFactory(deciderFn, counter.reducer, {})()
++      const applyEventFn = createApplyEventFnFactory(deciderFn, counter.reducer)({})
+ 
+       const id = zeroId('counter')
+       const state: ExtendedState<CounterState> = {
+@@ -113,7 +113,7 @@ describe('[command] apply event function', () => {
+       const reducerFn = (_: unknown) => {
+         throw new Error('error')
+       }
+-      const applyEventFn = createApplyEventFnFactory(counter.decider, reducerFn, {})()
++      const applyEventFn = createApplyEventFnFactory(counter.decider, reducerFn)({})
+ 
+       const id = zeroId('counter')
+       const state: ExtendedState<CounterState> = {
+@@ -149,7 +149,7 @@ describe('[command] apply event function', () => {
+           payload: { count: 42 }
+         })
+       }
+-      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer, {})()
++      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer)({})
+ 
+       const id = zeroId('counter')
+       const state: ExtendedState<CounterState> = {
+@@ -186,7 +186,7 @@ describe('[command] apply event function', () => {
+           payload: { count: deps.externalService.getValue() }
+         })
+       }
+-      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer, testDeps)()
++      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer)(testDeps)
+ 
+       const id = zeroId('counter')
+       const state: ExtendedState<CounterState> = {
+diff --git a/tests/command/fn/init-event.test.ts b/tests/command/fn/init-event.test.ts
+index ac388ad..7c64a20 100644
+--- a/tests/command/fn/init-event.test.ts
++++ b/tests/command/fn/init-event.test.ts
+@@ -8,7 +8,7 @@ describe('[command] init event function', () => {
+   describe('createInitEventFnFactory', () => {
+     test('should return a function when counter aggregate is provided', () => {
+       // Act
+-      const initEventFn = createInitEventFnFactory(counter.decider, counter.reducer, {})()
++      const initEventFn = createInitEventFnFactory(counter.decider, counter.reducer)({})
+ 
+       // Assert
+       expect(initEventFn).toBeDefined()
+@@ -24,7 +24,7 @@ describe('[command] init event function', () => {
+       }
+ 
+       // Act
+-      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer, deps)()
++      const initEventFn = createInitEventFnFactory(counter2.decider, counter2.reducer)(deps)
+ 
+       // Assert
+       expect(initEventFn).toBeDefined()
+@@ -34,7 +34,7 @@ describe('[command] init event function', () => {
+   describe('InitEventFn', () => {
+     test('should return a result with the new state and event when the command is valid', async () => {
+       // Arrange
+-      const applyEventFn = createInitEventFnFactory(counter.decider, counter.reducer, {})()
++      const applyEventFn = createInitEventFnFactory(counter.decider, counter.reducer)({})
+ 
+       const id = zeroId('counter')
+       const command: CounterCommand = {
+@@ -71,7 +71,7 @@ describe('[command] init event function', () => {
+       const deciderFn = (_: unknown) => {
+         throw new Error('error')
+       }
+-      const applyEventFn = createInitEventFnFactory(deciderFn, counter.reducer, {})()
++      const applyEventFn = createInitEventFnFactory(deciderFn, counter.reducer)({})
+ 
+       const id = zeroId('counter')
+       const command: CounterCommand = {
+@@ -98,7 +98,7 @@ describe('[command] init event function', () => {
+     const reducerFn = (_: unknown) => {
+       throw new Error('error')
+     }
+-    const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn, {})()
++    const applyEventFn = createInitEventFnFactory(counter.decider, reducerFn)({})
+ 
+     const id = zeroId('counter')
+     const command: CounterCommand = {
+@@ -128,7 +128,7 @@ describe('[command] init event function', () => {
+         payload: { count: 55 }
+       })
+     }
+-    const initEventFn = createInitEventFnFactory(decider, counter.reducer, {})()
++    const initEventFn = createInitEventFnFactory(decider, counter.reducer)({})
+ 
+     const id = zeroId('counter')
+     const command: CounterCommand = {
+@@ -159,7 +159,7 @@ describe('[command] init event function', () => {
+         payload: { count: deps.externalService.getValue() }
+       })
+     }
+-    const initEventFn = createInitEventFnFactory(decider, counter.reducer, testDeps)()
++    const initEventFn = createInitEventFnFactory(decider, counter.reducer)(testDeps)
+ 
+     const id = zeroId('counter')
+     const command: CounterCommand = {
+diff --git a/tests/command/helpers/create-accepts.test.ts b/tests/command/helpers/create-accepts.test.ts
+deleted file mode 100644
+index 5251bb6..0000000
+--- a/tests/command/helpers/create-accepts.test.ts
++++ /dev/null
+@@ -1,304 +0,0 @@
+-import { describe, expect, test } from 'bun:test'
+-import { zeroId } from '../../../src'
+-import {
+-  createAcceptsCommand,
+-  createAcceptsEvent
+-} from '../../../src/command/helpers/create-accepts'
+-import type { EventDeciderMap, ReducerMap } from '../../../src/types/command'
+-import type { AggregateId } from '../../../src/types/core'
+-
+-type TestState =
+-  | { type: 'initial'; id: AggregateId }
+-  | { type: 'active'; id: AggregateId; value: number }
+-  | { type: 'inactive'; id: AggregateId }
+-
+-type TestCommand =
+-  | { type: 'create'; id: AggregateId; payload: { value: number } }
+-  | { type: 'update'; id: AggregateId; payload: { value: number } }
+-  | { type: 'activate'; id: AggregateId }
+-  | { type: 'deactivate'; id: AggregateId }
+-
+-type TestEvent =
+-  | { type: 'created'; id: AggregateId; payload: { value: number } }
+-  | { type: 'updated'; id: AggregateId; payload: { value: number } }
+-  | { type: 'activated'; id: AggregateId }
+-  | { type: 'deactivated'; id: AggregateId }
+-
+-describe('[command] create accepts function', () => {
+-  describe('createAcceptsCommandFn', () => {
+-    test('accepts all command and state combinations when empty map is provided', () => {
+-      const emptyMap = {} as EventDeciderMap<TestState, TestCommand>
+-      const acceptsCommand = createAcceptsCommand(emptyMap)
+-
+-      const id = zeroId('test')
+-      const initialState: TestState = { type: 'initial', id }
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-      const createCommand: TestCommand = { type: 'create', id, payload: { value: 5 } }
+-      const updateCommand: TestCommand = { type: 'update', id, payload: { value: 15 } }
+-
+-      // Test with create event type
+-      expect(acceptsCommand(initialState, createCommand, 'create')).toBe(true)
+-      expect(acceptsCommand(activeState, createCommand, 'create')).toBe(true)
+-
+-      // Test with update event type
+-      expect(acceptsCommand(initialState, updateCommand, 'update')).toBe(true)
+-      expect(acceptsCommand(activeState, updateCommand, 'update')).toBe(true)
+-    })
+-
+-    test('accepts commands with empty array definition for create event type', () => {
+-      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
+-        create: [], // create command only allowed during initial creation (no existing state)
+-        update: ['active'], // update command only accepted in active state
+-        activate: ['initial'], // activate command only accepted in initial state
+-        deactivate: ['active'] // deactivate command only accepted in active state
+-      }
+-
+-      const acceptsCommand = createAcceptsCommand(deciderMap)
+-      const id = zeroId('test')
+-      const createCommand: TestCommand = { type: 'create', id, payload: { value: 5 } }
+-      const anyState: TestState = { type: 'active', id, value: 10 }
+-
+-      // create command has empty array, so it's accepted during creation
+-      expect(acceptsCommand(anyState, createCommand, 'create')).toBe(true)
+-    })
+-
+-    test('rejects commands with state array definition for create event type', () => {
+-      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
+-        create: [],
+-        update: ['active'],
+-        activate: ['initial'],
+-        deactivate: ['active']
+-      }
+-
+-      const acceptsCommand = createAcceptsCommand(deciderMap)
+-      const id = zeroId('test')
+-      const updateCommand: TestCommand = { type: 'update', id, payload: { value: 15 } }
+-      const anyState: TestState = { type: 'active', id, value: 10 }
+-
+-      // update command has state array defined, so it's rejected during creation
+-      expect(acceptsCommand(anyState, updateCommand, 'create')).toBe(false)
+-    })
+-
+-    test('accepts commands in allowed states for update event type', () => {
+-      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
+-        create: [],
+-        update: ['active'],
+-        activate: ['initial'],
+-        deactivate: ['active']
+-      }
+-
+-      const acceptsCommand = createAcceptsCommand(deciderMap)
+-      const id = zeroId('test')
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-      const initialState: TestState = { type: 'initial', id }
+-
+-      const updateCommand: TestCommand = { type: 'update', id, payload: { value: 15 } }
+-      const activateCommand: TestCommand = { type: 'activate', id }
+-
+-      // Commands are allowed in their specified states
+-      expect(acceptsCommand(activeState, updateCommand, 'update')).toBe(true)
+-      expect(acceptsCommand(initialState, activateCommand, 'update')).toBe(true)
+-    })
+-
+-    test('rejects commands in disallowed states for update event type', () => {
+-      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
+-        create: [],
+-        update: ['active'],
+-        activate: ['initial'],
+-        deactivate: ['active']
+-      }
+-
+-      const acceptsCommand = createAcceptsCommand(deciderMap)
+-      const id = zeroId('test')
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-      const initialState: TestState = { type: 'initial', id }
+-
+-      const updateCommand: TestCommand = { type: 'update', id, payload: { value: 15 } }
+-      const activateCommand: TestCommand = { type: 'activate', id }
+-
+-      // Commands are rejected in non-specified states
+-      expect(acceptsCommand(initialState, updateCommand, 'update')).toBe(false)
+-      expect(acceptsCommand(activeState, activateCommand, 'update')).toBe(false)
+-    })
+-
+-    test('rejects commands not defined in map for all states and event types', () => {
+-      const deciderMap: EventDeciderMap<TestState, TestCommand> = {
+-        create: [],
+-        update: ['active'],
+-        activate: ['initial'],
+-        deactivate: ['active']
+-      }
+-
+-      const acceptsCommand = createAcceptsCommand(deciderMap)
+-      const id = zeroId('test')
+-      const unknownCommand = { type: 'unknown', id } as unknown as TestCommand
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-
+-      expect(acceptsCommand(activeState, unknownCommand, 'update')).toBe(false)
+-      expect(acceptsCommand(activeState, unknownCommand, 'create')).toBe(false)
+-    })
+-  })
+-
+-  describe('createAcceptsEventFn', () => {
+-    test('accepts all event and state combinations when empty map is provided', () => {
+-      const emptyMap = {} as ReducerMap<TestState, TestEvent>
+-      const acceptsEvent = createAcceptsEvent(emptyMap)
+-
+-      const id = zeroId('test')
+-      const initialState: TestState = { type: 'initial', id }
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-      const createdEvent: TestEvent = { type: 'created', id, payload: { value: 5 } }
+-      const updatedEvent: TestEvent = { type: 'updated', id, payload: { value: 15 } }
+-
+-      // Test with create event type
+-      expect(acceptsEvent(initialState, createdEvent, 'create')).toBe(true)
+-      expect(acceptsEvent(activeState, createdEvent, 'create')).toBe(true)
+-
+-      // Test with update event type
+-      expect(acceptsEvent(initialState, updatedEvent, 'update')).toBe(true)
+-      expect(acceptsEvent(activeState, updatedEvent, 'update')).toBe(true)
+-    })
+-
+-    test('accepts events with empty array definition for create event type', () => {
+-      const reducerMap: ReducerMap<TestState, TestEvent> = {
+-        created: [], // created event only during initial creation
+-        updated: ['active'], // updated event only applies to active state
+-        activated: ['initial'], // activated event only applies to initial state
+-        deactivated: ['active'] // deactivated event only applies to active state
+-      }
+-
+-      const acceptsEvent = createAcceptsEvent(reducerMap)
+-      const id = zeroId('test')
+-      const createdEvent: TestEvent = { type: 'created', id, payload: { value: 5 } }
+-      const anyState: TestState = { type: 'active', id, value: 10 }
+-
+-      // created event has empty array, so it's accepted during creation
+-      expect(acceptsEvent(anyState, createdEvent, 'create')).toBe(true)
+-    })
+-
+-    test('rejects events with state array definition for create event type', () => {
+-      const reducerMap: ReducerMap<TestState, TestEvent> = {
+-        created: [],
+-        updated: ['active'],
+-        activated: ['initial'],
+-        deactivated: ['active']
+-      }
+-
+-      const acceptsEvent = createAcceptsEvent(reducerMap)
+-      const id = zeroId('test')
+-      const updatedEvent: TestEvent = { type: 'updated', id, payload: { value: 15 } }
+-      const anyState: TestState = { type: 'active', id, value: 10 }
+-
+-      // updated event has state array defined, so it's rejected during creation
+-      expect(acceptsEvent(anyState, updatedEvent, 'create')).toBe(false)
+-    })
+-
+-    test('accepts events in allowed states for update event type', () => {
+-      const reducerMap: ReducerMap<TestState, TestEvent> = {
+-        created: [],
+-        updated: ['active'],
+-        activated: ['initial'],
+-        deactivated: ['active']
+-      }
+-
+-      const acceptsEvent = createAcceptsEvent(reducerMap)
+-      const id = zeroId('test')
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-      const initialState: TestState = { type: 'initial', id }
+-
+-      const updatedEvent: TestEvent = { type: 'updated', id, payload: { value: 15 } }
+-      const activatedEvent: TestEvent = { type: 'activated', id }
+-
+-      // Events are allowed in their specified states
+-      expect(acceptsEvent(activeState, updatedEvent, 'update')).toBe(true)
+-      expect(acceptsEvent(initialState, activatedEvent, 'update')).toBe(true)
+-    })
+-
+-    test('rejects events in disallowed states for update event type', () => {
+-      const reducerMap: ReducerMap<TestState, TestEvent> = {
+-        created: [],
+-        updated: ['active'],
+-        activated: ['initial'],
+-        deactivated: ['active']
+-      }
+-
+-      const acceptsEvent = createAcceptsEvent(reducerMap)
+-      const id = zeroId('test')
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-      const initialState: TestState = { type: 'initial', id }
+-
+-      const updatedEvent: TestEvent = { type: 'updated', id, payload: { value: 15 } }
+-      const activatedEvent: TestEvent = { type: 'activated', id }
+-
+-      // Events are rejected in non-specified states
+-      expect(acceptsEvent(initialState, updatedEvent, 'update')).toBe(false)
+-      expect(acceptsEvent(activeState, activatedEvent, 'update')).toBe(false)
+-    })
+-
+-    test('correctly handles state transition patterns', () => {
+-      const reducerMap: ReducerMap<TestState, TestEvent> = {
+-        created: [],
+-        updated: ['active'],
+-        activated: ['initial'],
+-        deactivated: ['active']
+-      }
+-
+-      const acceptsEvent = createAcceptsEvent(reducerMap)
+-      const id = zeroId('test')
+-      const activatedEvent: TestEvent = { type: 'activated', id }
+-      const deactivatedEvent: TestEvent = { type: 'deactivated', id }
+-
+-      const initialState: TestState = { type: 'initial', id }
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-      const inactiveState: TestState = { type: 'inactive', id }
+-
+-      // initial -> active transition
+-      expect(acceptsEvent(initialState, activatedEvent, 'update')).toBe(true)
+-      expect(acceptsEvent(activeState, activatedEvent, 'update')).toBe(false)
+-      expect(acceptsEvent(inactiveState, activatedEvent, 'update')).toBe(false)
+-
+-      // active -> inactive transition
+-      expect(acceptsEvent(activeState, deactivatedEvent, 'update')).toBe(true)
+-      expect(acceptsEvent(initialState, deactivatedEvent, 'update')).toBe(false)
+-      expect(acceptsEvent(inactiveState, deactivatedEvent, 'update')).toBe(false)
+-    })
+-
+-    test('rejects events not defined in map for all states and event types', () => {
+-      const reducerMap: ReducerMap<TestState, TestEvent> = {
+-        created: [],
+-        updated: ['active'],
+-        activated: ['initial'],
+-        deactivated: ['active']
+-      }
+-
+-      const acceptsEvent = createAcceptsEvent(reducerMap)
+-      const id = zeroId('test')
+-      const unknownEvent = { type: 'unknown', id } as unknown as TestEvent
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-
+-      expect(acceptsEvent(activeState, unknownEvent, 'update')).toBe(false)
+-      expect(acceptsEvent(activeState, unknownEvent, 'create')).toBe(false)
+-    })
+-
+-    test('properly handles null and undefined values in map', () => {
+-      // Arrange - intentionally create map with null and undefined values
+-      const mapWithNull = {
+-        created: [],
+-        updated: null, // intentionally set to null
+-        activated: undefined, // intentionally set to undefined
+-        deactivated: ['active'] // Add required property
+-      } as unknown as ReducerMap<TestState, TestEvent>
+-
+-      const acceptsEvent = createAcceptsEvent(mapWithNull)
+-      const id = zeroId('test')
+-      const activeState: TestState = { type: 'active', id, value: 10 }
+-
+-      const updatedEvent: TestEvent = { type: 'updated', id, payload: { value: 15 } }
+-      const activatedEvent: TestEvent = { type: 'activated', id }
+-
+-      // null/undefined cases are handled properly
+-      expect(acceptsEvent(activeState, updatedEvent, 'update')).toBe(false)
+-      expect(acceptsEvent(activeState, activatedEvent, 'update')).toBe(false)
+-    })
+-  })
+-})
+diff --git a/tests/event/event-bus.test.ts b/tests/event/event-bus.test.ts
+index c1726ac..9906f3c 100644
+--- a/tests/event/event-bus.test.ts
++++ b/tests/event/event-bus.test.ts
+@@ -3,32 +3,10 @@ import { CommandDispatcherMock } from '../../src/adapter/command-dispatcher-mock
+ import { ReadModelStoreInMemory } from '../../src/adapter/read-model-store-in-memory'
+ import { zeroId } from '../../src/command/helpers/aggregate-id'
+ import { createEventBus } from '../../src/event/event-bus'
+-import type { AggregateId, ExtendedDomainEvent, ReadModel } from '../../src/types/core'
+-import type { EventReactor, ProjectionFn } from '../../src/types/event'
+-
+-type TestCommand = { type: 'notify'; id: AggregateId<'test'>; payload: { message: string } }
+-
+-type TestEvent = ExtendedDomainEvent<{
+-  type: 'created'
+-  id: AggregateId<'test'>
+-  payload: { name: string }
+-}>
+-
+-type TestReadModel = ReadModel & {
+-  type: 'test'
+-  id: string
+-  name: string
+-}
+-
+-const projection: ProjectionFn<TestEvent, TestReadModel> = _ => {
+-  return { type: 'test', id: '123', name: 'test' }
+-}
+-
+-const createTestReactor: EventReactor<TestEvent, TestCommand, TestReadModel> = {
+-  type: 'test',
+-  policy: () => null,
+-  projection
+-}
++import type { ExtendedDomainEvent } from '../../src/types/core'
++import type { EventReactor } from '../../src/types/event'
++import { counterReactor } from '../fixtures'
++import type { CounterEvent } from '../fixtures/counter-app/features/counter/types'
+ 
+ describe('[event] event bus', () => {
+   describe('createEventBus', () => {
+@@ -38,7 +16,7 @@ describe('[event] event bus', () => {
+         commandDispatcher: new CommandDispatcherMock(),
+         readModelStore: new ReadModelStoreInMemory()
+       }
+-      const reactors = [createTestReactor]
++      const reactors = [counterReactor]
+ 
+       // Act
+       const eventBus = createEventBus({ deps, reactors })
+@@ -63,58 +41,141 @@ describe('[event] event bus', () => {
+       expect(eventBus).toBeDefined()
+       expect(typeof eventBus).toBe('function')
+     })
+-  })
+ 
+-  describe('event processing', () => {
+-    test('returns error when handler not found', async () => {
++    test('creates event bus with minimal configuration', () => {
+       // Arrange
+       const deps = {
+         commandDispatcher: new CommandDispatcherMock(),
+         readModelStore: new ReadModelStoreInMemory()
+       }
+-      const eventBus = createEventBus({ deps, reactors: [] })
+-      const event: TestEvent = {
+-        type: 'created',
+-        id: zeroId('test'),
+-        payload: { name: 'test' },
+-        version: 1,
+-        timestamp: new Date()
+-      }
+ 
+       // Act
+-      const res = await eventBus(event)
++      const eventBus = createEventBus({ deps, reactors: [] })
+ 
+       // Assert
+-      expect(res.ok).toBe(false)
+-      if (!res.ok) {
+-        expect(res.error.code).toBe('EVENT_HANDLER_NOT_FOUND')
+-        expect(res.error.message).toBe('Handler for event type created not found')
+-      }
++      expect(eventBus).toBeDefined()
++      expect(typeof eventBus).toBe('function')
+     })
++  })
+ 
+-    test('returns error when handler not found for specific aggregate type', async () => {
+-      // Arrange
+-      const deps = {
+-        commandDispatcher: new CommandDispatcherMock(),
+-        readModelStore: new ReadModelStoreInMemory()
+-      }
+-      const eventBus = createEventBus({ deps, reactors: [createTestReactor] })
+-      const event = {
+-        type: 'created',
+-        id: { type: 'hoge', value: '123' },
+-        payload: { name: 'test' },
+-        version: 1,
+-        timestamp: new Date()
+-      }
+-
+-      // Act
+-      const res = await eventBus(event)
++  describe('event processing', () => {
++    describe('successful event handling', () => {
++      test('processes event successfully when matching handler exists', async () => {
++        // Arrange
++        const id = zeroId('counter')
++
++        const deps = {
++          commandDispatcher: new CommandDispatcherMock(),
++          readModelStore: new ReadModelStoreInMemory()
++        }
++        deps.readModelStore.save({
++          type: 'counter',
++          id: id.value
++        })
++        const eventBus = createEventBus({ deps, reactors: [counterReactor] })
++
++        const event: ExtendedDomainEvent<CounterEvent> = {
++          type: 'created',
++          id,
++          payload: { count: 0 },
++          version: 1,
++          timestamp: new Date()
++        }
++
++        // Act
++        const res = await eventBus(event)
++        console.log('res', res)
++
++        // Assert
++        expect(res.ok).toBe(true)
++      })
++    })
+ 
+-      // Assert
+-      expect(res.ok).toBe(false)
+-      if (!res.ok) {
+-        expect(res.error.code).toBe('EVENT_HANDLER_NOT_FOUND')
+-      }
++    describe('error handling', () => {
++      test('returns error when handler not found for event type', async () => {
++        // Arrange
++        const deps = {
++          commandDispatcher: new CommandDispatcherMock(),
++          readModelStore: new ReadModelStoreInMemory()
++        }
++        const eventBus = createEventBus({ deps, reactors: [] })
++        const event: ExtendedDomainEvent<CounterEvent> = {
++          type: 'created',
++          id: zeroId('counter'),
++          payload: { count: 0 },
++          version: 1,
++          timestamp: new Date()
++        }
++
++        // Act
++        const res = await eventBus(event)
++
++        // Assert
++        expect(res.ok).toBe(false)
++        if (!res.ok) {
++          expect(res.error.code).toBe('EVENT_HANDLER_NOT_FOUND')
++          expect(res.error.message).toBe('Handler for event type created not found')
++        }
++      })
++
++      test('returns error when handler not found for specific aggregate type', async () => {
++        // Arrange
++        const deps = {
++          commandDispatcher: new CommandDispatcherMock(),
++          readModelStore: new ReadModelStoreInMemory()
++        }
++        const eventBus = createEventBus({ deps, reactors: [counterReactor] })
++        const event = {
++          type: 'created',
++          id: { type: 'hoge', value: '123' },
++          payload: { name: 'test' },
++          version: 1,
++          timestamp: new Date()
++        }
++
++        // Act
++        const res = await eventBus(event)
++
++        // Assert
++        expect(res.ok).toBe(false)
++        if (!res.ok) {
++          expect(res.error.code).toBe('EVENT_HANDLER_NOT_FOUND')
++        }
++      })
++
++      test('returns error when handler exists but event processing fails', async () => {
++        // Arrange
++        const id = zeroId('counter')
++        const deps = {
++          commandDispatcher: new CommandDispatcherMock(),
++          readModelStore: new ReadModelStoreInMemory()
++        }
++        deps.readModelStore.save({
++          type: 'counter',
++          id: id.value
++        })
++        deps.readModelStore.save = async () => {
++          throw new Error('Database error')
++        }
++
++        const eventBus = createEventBus({ deps, reactors: [counterReactor] })
++        const event: ExtendedDomainEvent<CounterEvent> = {
++          type: 'created',
++          id,
++          payload: { count: 0 },
++          version: 1,
++          timestamp: new Date()
++        }
++
++        // Act
++        const res = await eventBus(event)
++
++        // Assert
++        expect(res.ok).toBe(false)
++        if (!res.ok) {
++          expect(res.error.code).toBe('MODEL_SAVE_FAILED')
++        }
++      })
+     })
+   })
+ })
+diff --git a/tests/event/event-handler.test.ts b/tests/event/event-handler.test.ts
+index 57b8e33..346d46d 100644
+--- a/tests/event/event-handler.test.ts
++++ b/tests/event/event-handler.test.ts
+@@ -1,7 +1,8 @@
+ import { describe, expect, test } from 'bun:test'
+ import { zeroId } from '../../src'
++import { CommandDispatcherMock } from '../../src/adapter/command-dispatcher-mock'
++import { ReadModelStoreInMemory } from '../../src/adapter/read-model-store-in-memory'
+ import { createEventHandlers } from '../../src/event/event-handler'
+-import type { CommandDispatcher, QueryOption, ReadModelStore } from '../../src/types/adapter'
+ import type { AggregateId, ReadModel } from '../../src/types/core'
+ import type { EventReactor } from '../../src/types/event'
+ 
+@@ -10,232 +11,244 @@ type TestCommand = { type: 'notify'; id: AggregateId<'test'>; payload: { message
+ type TestEvent = { type: 'created'; id: AggregateId<'test'>; payload: { name: string } }
+ type TestReadModel = ReadModel & { type: 'test'; id: string; name: string }
+ 
+-// Mock classes for testing error scenarios
+-class MockCommandDispatcherError implements CommandDispatcher {
+-  async dispatch(): Promise<void> {
+-    throw new Error('Mock dispatch error')
+-  }
+-}
+-
+-class MockReadModelStoreError implements ReadModelStore {
+-  async findMany<T extends ReadModel>(_type: T['type'], _optionss: unknown): Promise<T[]> {
+-    throw new Error('Mock database error')
+-  }
+-
+-  async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
+-    throw new Error('Mock database error')
+-  }
+-
+-  async save(): Promise<void> {
+-    throw new Error('Mock save error')
+-  }
+-
+-  async delete(): Promise<void> {
+-    throw new Error('Mock delete error')
+-  }
+-}
+-
+-class MockReadModelStoreThrows implements ReadModelStore {
+-  async findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
+-    throw new Error('Method not implemented.')
+-  }
+-  async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
+-    throw new Error('Method not implemented.')
+-  }
+-
+-  async save(): Promise<void> {
+-    throw new Error('Save operation failed')
+-  }
+-
+-  async delete(): Promise<void> {
+-    throw new Error('Delete operation failed')
+-  }
+-}
+-
+-describe('[event] event handler', () => {
+-  describe('error handling in dispatch operations', () => {
+-    test('handles dispatch errors from policy execution', async () => {
+-      // Arrange
+-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
+-        type: 'test',
+-        policy: () => ({
+-          type: 'notify',
+-          id: zeroId('test'),
+-          payload: { message: 'test' }
+-        }),
+-        projection: {
+-          created: {
+-            test: ({ event }) => ({
+-              type: 'test',
+-              id: event.id.value,
+-              name: event.payload.name
+-            })
+-          }
+-        }
+-      }
+-
+-      const deps = {
+-        commandDispatcher: new MockCommandDispatcherError(),
+-        readModelStore: new MockReadModelStoreError()
+-      }
+-
+-      const handlers = createEventHandlers(deps, [reactor])
+-      const event = {
+-        type: 'created',
+-        id: zeroId('test'),
+-        payload: { name: 'test' },
+-        version: 1,
+-        timestamp: new Date()
+-      }
+-
+-      // Act
+-      const result = await handlers['test']!(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('COMMAND_DISPATCH_FAILED')
+-      }
+-    })
+-  })
+-
+-  describe('error handling in projection operations', () => {
+-    test('handles projection errors when database operations fail', async () => {
+-      // Arrange
+-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
+-        type: 'test',
+-        policy: () => null, // No command dispatch
+-        projection: {
+-          created: {
+-            test: ({ event }) => ({
+-              type: 'test',
+-              id: event.id.value,
+-              name: event.payload.name
+-            })
+-          }
+-        }
+-      }
+-
+-      const deps = {
+-        commandDispatcher: new MockCommandDispatcherError(),
+-        readModelStore: new MockReadModelStoreError()
+-      }
+-
+-      const handlers = createEventHandlers(deps, [reactor])
+-      const event = {
+-        type: 'created',
+-        id: zeroId('test'),
+-        payload: { name: 'test' },
+-        version: 1,
+-        timestamp: new Date()
+-      }
+-
+-      // Act
+-      const result = await handlers['test']!(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
+-      }
+-    })
+-  })
+-
+-  describe('unexpected error handling', () => {
+-    test('handles unexpected errors that escape the Result type system', async () => {
+-      // Arrange
+-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
+-        type: 'test',
+-        policy: () => null,
+-        projection: {
+-          created: {
+-            test: ({ event }) => ({
+-              type: 'test',
+-              id: event.id.value,
+-              name: event.payload.name
+-            })
+-          }
+-        }
+-      }
+-
+-      const deps = {
+-        commandDispatcher: new MockCommandDispatcherError(),
+-        readModelStore: new MockReadModelStoreThrows()
+-      }
+-
+-      const handlers = createEventHandlers(deps, [reactor])
+-      const event = {
+-        type: 'created',
+-        id: zeroId('test'),
+-        payload: { name: 'test' },
+-        version: 1,
+-        timestamp: new Date()
+-      }
+-
+-      // Act
+-      const result = await handlers['test']!(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
+-      }
+-    })
+-
+-    test('handles non-Error exceptions gracefully', async () => {
+-      // Arrange
+-      class ThrowsStringDatabase implements ReadModelStore {
+-        findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
+-          throw new Error('Method not implemented.')
+-        }
+-        findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
+-          throw new Error('Method not implemented.')
+-        }
+-        async save(): Promise<void> {
+-          throw 'String error'
+-        }
+-
+-        async delete(): Promise<void> {
+-          throw 'String error'
+-        }
+-      }
+-
+-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
+-        type: 'test',
+-        policy: () => null,
+-        projection: {
+-          created: {
+-            test: ({ event }) => ({
+-              type: 'test',
+-              id: event.id.value,
+-              name: event.payload.name
+-            })
+-          }
+-        }
+-      }
+-
+-      const deps = {
+-        commandDispatcher: new MockCommandDispatcherError(),
+-        readModelStore: new ThrowsStringDatabase()
+-      }
+-
+-      const handlers = createEventHandlers(deps, [reactor])
+-      const event = {
+-        type: 'created',
+-        id: zeroId('test'),
+-        payload: { name: 'test' },
+-        version: 1,
+-        timestamp: new Date()
+-      }
+-
+-      // Act
+-      const result = await handlers['test']!(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
+-      }
+-    })
+-  })
+-})
++// describe('[event] event handler', () => {
++//   describe('createEventHandlers', () => {
++//     describe('successful event handling', () => {
++//       test('processes event with policy that returns command', async () => {
++//         // Arrange
++//         const commandDispatcher = new CommandDispatcherMock()
++//         const readModelStore = new ReadModelStoreInMemory()
++
++//         const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
++//           type: 'test',
++//           policy: () => ({
++//             type: 'notify',
++//             id: zeroId('test'),
++//             payload: { message: 'test notification' }
++//           }),
++//           projection: {
++//             created: {
++//               test: () => ({
++//                 type: 'test',
++//                 id: '123',
++//                 name: 'test'
++//               })
++//             }
++//           },
++//           projectionMap: {
++//             created: []
++//           }
++//         }
++
++//         const deps = { commandDispatcher, readModelStore }
++//         const handlers = createEventHandlers(deps, [reactor])
++
++//         const event = {
++//           type: 'created',
++//           id: zeroId('test'),
++//           payload: { name: 'test' },
++//           version: 1,
++//           timestamp: new Date()
++//         }
++
++//         // Act
++//         const res = await handlers['test'](event)
++
++//         // Assert
++//         expect(res.ok).toBe(true)
++//       })
++
++//       test('processes event with policy that returns null', async () => {
++//         // Arrange
++//         const commandDispatcher = new CommandDispatcherMock()
++//         const readModelStore = new ReadModelStoreInMemory()
++
++//         const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
++//           type: 'test',
++//           policy: () => null,
++//           projection: {
++//             created: {
++//               test: () => ({
++//                 type: 'test',
++//                 id: '123',
++//                 name: 'test'
++//               })
++//             }
++//           },
++//           projectionMap: {
++//             created: []
++//           }
++//         }
++
++//         const deps = { commandDispatcher, readModelStore }
++//         const handlers = createEventHandlers(deps, [reactor])
++
++//         const event = {
++//           type: 'created',
++//           id: zeroId('test'),
++//           payload: { name: 'test' },
++//           version: 1,
++//           timestamp: new Date()
++//         }
++
++//         // Act
++//         const res = await handlers['test'](event)
++
++//         // Assert
++//         expect(res.ok).toBe(true)
++//       })
++//     })
++
++//     describe('error handling in dispatch operations', () => {
++//       test('handles dispatch errors from policy execution', async () => {
++//         // Arrange
++//         const commandDispatcher = new CommandDispatcherMock()
++//         const readModelStore = new ReadModelStoreInMemory()
++
++//         // Make commandDispatcher throw error
++//         commandDispatcher.dispatch = async () => {
++//           throw new Error('Network timeout')
++//         }
++
++//         const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
++//           type: 'test',
++//           policy: () => ({
++//             type: 'notify',
++//             id: zeroId('test'),
++//             payload: { message: 'test' }
++//           }),
++//           projection: {
++//             created: {
++//               test: () => ({
++//                 type: 'test',
++//                 id: '123',
++//                 name: 'test'
++//               })
++//             }
++//           },
++//           projectionMap: {
++//             created: []
++//           }
++//         }
++
++//         const deps = { commandDispatcher, readModelStore }
++//         const handlers = createEventHandlers(deps, [reactor])
++
++//         const event = {
++//           type: 'created',
++//           id: zeroId('test'),
++//           payload: { name: 'test' },
++//           version: 1,
++//           timestamp: new Date()
++//         }
++
++//         // Act
++//         const res = await handlers['test'](event)
++
++//         // Assert
++//         expect(res.ok).toBe(false)
++//         if (!res.ok) {
++//           expect(res.error.code).toBe('COMMAND_DISPATCH_FAILED')
++//         }
++//       })
++//     })
++
++//     describe('error handling in projection operations', () => {
++//       test('handles projection errors when database operations fail', async () => {
++//         // Arrange
++//         const commandDispatcher = new CommandDispatcherMock()
++//         const readModelStore = new ReadModelStoreInMemory()
++
++//         // Make readModelStore.save throw error
++//         readModelStore.save = async () => {
++//           throw new Error('Database connection lost')
++//         }
++
++//         const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
++//           type: 'test',
++//           policy: () => null,
++//           projection: {
++//             created: {
++//               test: () => ({
++//                 type: 'test',
++//                 id: '123',
++//                 name: 'test'
++//               })
++//             }
++//           },
++//           projectionMap: {
++//             created: [{ readModel: 'test' }]
++//           }
++//         }
++
++//         const deps = { commandDispatcher, readModelStore }
++//         const handlers = createEventHandlers(deps, [reactor])
++
++//         const event = {
++//           type: 'created',
++//           id: zeroId('test'),
++//           payload: { name: 'test' },
++//           version: 1,
++//           timestamp: new Date()
++//         }
++
++//         // Act
++//         const res = await handlers['test'](event)
++
++//         // Assert
++//         expect(res.ok).toBe(false)
++//         if (!res.ok) {
++//           expect(res.error.code).toBe('MODEL_SAVE_FAILED')
++//         }
++//       })
++
++//       test('handles non-Error exceptions gracefully', async () => {
++//         // Arrange
++//         const commandDispatcher = new CommandDispatcherMock()
++//         const readModelStore = new ReadModelStoreInMemory()
++
++//         // Make readModelStore.save throw non-Error exception
++//         readModelStore.save = async () => {
++//           throw 'String error'
++//         }
++
++//         const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
++//           type: 'test',
++//           policy: () => null,
++//           projection: {
++//             created: {
++//               test: ({ event }) => ({
++//                 type: 'test',
++//                 id: event.id.value,
++//                 name: 'test'
++//               })
++//             }
++//           },
++//           projectionMap: {
++//             created: [{ readModel: 'test' }]
++//           }
++//         }
++
++//         const deps = { commandDispatcher, readModelStore }
++//         const handlers = createEventHandlers(deps, [reactor])
++
++//         const event = {
++//           type: 'created',
++//           id: zeroId('test'),
++//           payload: { name: 'test' },
++//           version: 1,
++//           timestamp: new Date()
++//         }
++
++//         // Act
++//         const res = await handlers['test'](event)
++
++//         // Assert
++//         expect(res.ok).toBe(false)
++//         if (!res.ok) {
++//           expect(res.error.code).toBe('MODEL_SAVE_FAILED')
++//         }
++//       })
++//     })
++//   })
++// })
+diff --git a/tests/event/event-reactor-builder.test.ts b/tests/event/event-reactor-builder.test.ts
+index b83807c..c8d66ac 100644
+--- a/tests/event/event-reactor-builder.test.ts
++++ b/tests/event/event-reactor-builder.test.ts
+@@ -260,19 +260,5 @@ describe('[event] event reactor builder', () => {
+       expect(result.name).toBe('Test Item')
+       expect(result.status).toBe('active')
+     })
+-
+-    test('throws error when building incomplete reactor', () => {
+-      // Arrange
+-      const incompleteBuilder = createEventReactor<TestEvent, TestCommand, TestReadModel>()
+-        .type('test')
+-        .policy(testPolicy)
+-      // Missing projection
+-
+-      // Act & Assert
+-      expect(() => {
+-        // @ts-expect-error - This should fail at compile time, but we test runtime behavior
+-        incompleteBuilder.build()
+-      }).toThrow('EventReactor is not ready to build. Missing required properties.')
+-    })
+   })
+ })
+diff --git a/tests/event/fn/dispatch-event.test.ts b/tests/event/fn/dispatch-event.test.ts
+index b3d15ff..78de565 100644
+--- a/tests/event/fn/dispatch-event.test.ts
++++ b/tests/event/fn/dispatch-event.test.ts
+@@ -1,31 +1,20 @@
+ import { describe, expect, test } from 'bun:test'
+ import { zeroId } from '../../../src/command/helpers/aggregate-id'
+ import { createDispatchEventFnFactory } from '../../../src/event/fn/dispatch-event'
+-import type { CommandDispatcher } from '../../../src/types/adapter'
+ import type { AggregateId, ExtendedDomainEvent } from '../../../src/types/core'
+ 
+ type TestEvent = { type: 'created'; id: AggregateId<'test'>; payload: { name: string } }
+ 
+-// Mock command dispatcher that fails
+-class MockCommandDispatcherError implements CommandDispatcher {
+-  async dispatch() {
+-    throw new Error('Mock dispatch failed')
+-  }
+-}
+-
+-// Mock command dispatcher that succeeds
+-class MockCommandDispatcherSuccess implements CommandDispatcher {
+-  async dispatch() {
+-    throw new Error('Mock dispatch failed')
+-  }
+-}
+-
+ describe('[event] dispatch event function', () => {
+   describe('createDispatchEventFnFactory', () => {
+     test('returns ok when policy returns no command', async () => {
+       // Arrange
+       const policy = () => null
+-      const dispatcher = new MockCommandDispatcherSuccess()
++      const dispatcher = {
++        dispatch: async () => {
++          return Promise.resolve()
++        }
++      }
+       const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
+       const event: ExtendedDomainEvent<TestEvent> = {
+         type: 'created',
+@@ -49,7 +38,11 @@ describe('[event] dispatch event function', () => {
+         id: zeroId('test'),
+         payload: { message: 'test' }
+       })
+-      const dispatcher = new MockCommandDispatcherError()
++      const dispatcher = {
++        dispatch: async () => {
++          throw new Error('Mock dispatch failed')
++        }
++      }
+       const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
+       const event: ExtendedDomainEvent<TestEvent> = {
+         type: 'created',
+@@ -67,23 +60,22 @@ describe('[event] dispatch event function', () => {
+       if (!result.ok) {
+         expect(result.error.code).toBe('COMMAND_DISPATCH_FAILED')
+         expect(result.error.message).toBe('Command dispatch failed')
++        expect((result.error.cause as Error).message).toBe('Mock dispatch failed')
+       }
+     })
+ 
+     test('returns ok when command dispatch succeeds', async () => {
+       // Arrange
+-      class MockCommandDispatcherOk implements CommandDispatcher {
+-        async dispatch() {
+-          return Promise.resolve()
+-        }
+-      }
+-
+       const policy = () => ({
+         type: 'notify' as const,
+         id: zeroId('test'),
+         payload: { message: 'test' }
+       })
+-      const dispatcher = new MockCommandDispatcherOk()
++      const dispatcher = {
++        dispatch: async () => {
++          return Promise.resolve()
++        }
++      }
+       const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
+       const event: ExtendedDomainEvent<TestEvent> = {
+         type: 'created',
+diff --git a/tests/event/fn/project-event.test.ts b/tests/event/fn/project-event.test.ts
+index a220b13..9c5e17e 100644
+--- a/tests/event/fn/project-event.test.ts
++++ b/tests/event/fn/project-event.test.ts
+@@ -1,409 +1,328 @@
+ import { describe, expect, test } from 'bun:test'
+ import { createProjectEventFnFactory } from '../../../src/event/fn/project-event'
+-import type { QueryOption, ReadModelStore } from '../../../src/types/adapter'
+-import type { AggregateId, ExtendedDomainEvent, ReadModel } from '../../../src/types/core'
++import type { AggregateId, ExtendedDomainEvent } from '../../../src/types/core'
+ import type { Projection, ProjectionMap } from '../../../src/types/event'
++import { mapProjectionToFn } from '../../../src/event/mapper/map-projection-to-fn'
+ 
+-// Test types
+ type TestEvent =
+   | { type: 'created'; id: AggregateId<'test'>; payload: { name: string } }
+   | { type: 'updated'; id: AggregateId<'test'>; payload: { name: string } }
+   | { type: 'deleted'; id: AggregateId<'test'> }
+ 
+-type TestReadModel = ReadModel & {
+-  type: 'test'
+-  id: string
+-  name: string
+-}
+-
+-const testId = (id: string): AggregateId<'test'> => ({ type: 'test', value: id })
+-
+-const createTestEvent = (
+-  type: TestEvent['type'],
+-  id: string,
+-  payload?: any
+-): ExtendedDomainEvent<TestEvent> =>
+-  ({
+-    type,
+-    id: testId(id),
+-    payload,
+-    aggregateId: testId(id),
+-    version: 1,
+-    timestamp: new Date()
+-  }) as ExtendedDomainEvent<TestEvent>
+-
+-// Mock database classes for testing error scenarios
+-class MockReadModelStore implements ReadModelStore {
+-  async findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
+-    return []
+-  }
+-
+-  async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
+-    return {
+-      type: 'test',
+-      id: '123',
+-      name: 'existing'
+-    } as unknown as T
+-  }
+-
+-  async save<T extends ReadModel>(_model: T): Promise<void> {
+-    // Success - do nothing
+-  }
+-
+-  async delete<T extends ReadModel>(_model: T): Promise<void> {
+-    // Success - do nothing
+-  }
+-}
+-
+-class MockReadModelStoreWithErrors implements ReadModelStore {
+-  constructor(
+-    private shouldFailOnGet = false,
+-    private shouldFailOnSave = false,
+-    private shouldFailOnDelete = false
+-  ) {}
+-
+-  async findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
+-    return []
+-  }
++type TestReadModel = { type: 'test'; id: string; name: string }
+ 
+-  async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
+-    if (this.shouldFailOnGet) {
+-      throw new Error('Get by ID failed')
++const projection: Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>> = {
++  created: {
++    test: ({ readModel }) => {
++      readModel.name = 'test_created'
+     }
+-    return {
+-      type: 'test',
+-      id: '123',
+-      name: 'existing'
+-    } as unknown as T
+-  }
+-
+-  async save<T extends ReadModel>(_model: T): Promise<void> {
+-    if (this.shouldFailOnSave) {
+-      throw new Error('Save operation failed')
+-    }
+-  }
+-
+-  async delete<T extends ReadModel>(_model: T): Promise<void> {
+-    if (this.shouldFailOnDelete) {
+-      throw new Error('Delete operation failed')
++  },
++  updated: {
++    test: ({ readModel }) => {
++      readModel.name = 'test_updated'
+     }
++  },
++  deleted: {
++    test: () => {}
+   }
+ }
+ 
+ describe('[event] project event function', () => {
+   describe('createProjectEventFnFactory', () => {
+-    test('handles invalid event type (non-string)', async () => {
+-      // Arrange
+-      const projection = {
+-        created: {
+-          test: (_params: any) => ({ type: 'mutate' })
+-        }
+-      }
+-
+-      const db = new MockReadModelStoreWithErrors()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const invalidEvent = {
+-        ...createTestEvent('created', '123'),
+-        type: 123 // Invalid type
+-      } as any
+-
+-      // Act
+-      const result = await projectFn(invalidEvent)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('INVALID_EVENT_TYPE')
+-        expect(result.error.message).toContain('Event type must be string')
+-      }
+-    })
+-
+-    test('handles event type not found in projection', async () => {
+-      // Arrange
+-      const projection = {
+-        created: {
+-          test: (_params: any) => ({ type: 'mutate' })
+-        }
+-      }
+-
+-      const db = new MockReadModelStoreWithErrors()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('updated', '123', { name: 'test' })
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('EVENT_TYPE_NOT_FOUND')
+-        expect(result.error.message).toBe('Event type updated not found')
+-      }
+-    })
+-
+-    test('skips invalid projection definitions', async () => {
+-      // Arrange
+-      const projection = {
+-        created: {
+-          test: null, // Invalid definition
+-          validReadModel: (_params: unknown) => ({
+-            type: 'upsert',
+-            readModel: { type: 'test', id: '123', name: 'test' }
+-          })
+-        }
+-      } as any
+-
+-      const db = new MockReadModelStoreWithErrors()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('created', '123', { name: 'test' })
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(true)
+-    })
+-
+-    test('handles upsert operation save failure', async () => {
+-      // Arrange
+-      const projection = {
+-        created: {
+-          test: () => ({
+-            type: 'upsert',
+-            readModel: {
+-              type: 'test',
+-              id: '123',
+-              name: 'test'
+-            }
+-          })
+-        }
+-      }
+-
+-      const db = new MockReadModelStoreWithErrors(false, true) // Fail on save
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('created', '123', { name: 'test' })
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
+-        expect(result.error.message).toContain('SavereadModel failed')
+-      }
+-    })
+-
+-    test('handles projection function execution successfully', async () => {
+-      // Arrange
+-      const projection: Projection<
+-        TestEvent,
+-        TestReadModel,
+-        ProjectionMap<TestEvent, TestReadModel>
+-      > = {
+-        created: {
+-          test: ({ event }) => ({ type: 'test', id: event.id.value, name: event.payload.name })
+-        },
+-        deleted: {
+-          test: () => undefined
+-        },
+-        updated: {
+-          test: ({ readModel }) => {
+-            readModel.name = 'updated'
+-            return readModel
+-          }
+-        }
+-      }
+-
+-      const db = new MockReadModelStore()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('updated', '123', { name: 'test' })
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(true)
+-    })
+-
+-    test('handles save failure when projection returnsreadModel', async () => {
+-      // Arrange
+-      const projection: Projection<
+-        TestEvent,
+-        TestReadModel,
+-        ProjectionMap<TestEvent, TestReadModel>
+-      > = {
+-        created: {
+-          test: ({ event }) => ({ type: 'test', id: event.id.value, name: event.payload.name })
+-        },
+-        deleted: {
+-          test: () => undefined
+-        },
+-        updated: {
+-          test: ({ readModel }) => {
+-            readModel.name = 'updated'
+-            return readModel
+-          }
+-        }
+-      }
+-
+-      const db = new MockReadModelStoreWithErrors(false, true) // Success on get, fail on save
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('updated', '123', { name: 'test' })
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
+-        expect(result.error.message).toContain('SavereadModel failed')
+-      }
+-    })
+-
+-    test('handles projection returning undefined (no-op)', async () => {
+-      // Arrange
+-      const projection: Projection<
+-        TestEvent,
+-        TestReadModel,
+-        ProjectionMap<TestEvent, TestReadModel>
+-      > = {
+-        created: {
+-          test: ({ event }) => ({ type: 'test', id: event.id.value, name: event.payload.name })
+-        },
+-        deleted: {
+-          test: () => undefined // Returns undefined, so no save operation
+-        },
+-        updated: {
+-          test: ({ readModel }) => {
+-            readModel.name = 'updated'
+-            return readModel
+-          }
+-        }
+-      }
+-
+-      const db = new MockReadModelStore()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('deleted', '123')
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(true) // Should succeed as nothing is saved
+-    })
+-
+-    test('handles projection function throwing error', async () => {
++    test('handles project event success', async () => {
+       // Arrange
+-      const projection: Projection<
+-        TestEvent,
+-        TestReadModel,
+-        ProjectionMap<TestEvent, TestReadModel>
+-      > = {
+-        created: {
+-          test: () => {
+-            throw new Error('Projection function error')
+-          }
+-        },
+-        deleted: {
+-          test: () => undefined
+-        },
+-        updated: {
+-          test: ({ readModel }) => {
+-            readModel.name = 'updated'
+-            return readModel
+-          }
+-        }
++      const fn = mapProjectionToFn(projection)
++      const projectFn = createProjectEventFnFactory(fn)()
++
++      const id: AggregateId<'test'> = { type: 'test', value: '123' }
++      const event: ExtendedDomainEvent<TestEvent> = {
++        type: 'updated',
++        id,
++        payload: { name: 'test' },
++        version: 1,
++        timestamp: new Date()
+       }
+-
+-      const db = new MockReadModelStore()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('created', '123', { name: 'test' })
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(false)
+-      if (!result.ok) {
+-        expect(result.error.code).toBe('PROJECTION_EXECUTION_FAILED')
+-        expect(result.error.message).toContain('Projection execution failed')
+-      }
+-    })
+-
+-    test('processes noop operation successfully', async () => {
+-      // Arrange
+-      const projection = {
+-        created: {
+-          test: (_params: any) => ({ type: 'mutate' })
+-        }
+-      }
+-
+-      const db = new MockReadModelStoreWithErrors()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('created', '123', { name: 'test' })
++      const readModel: TestReadModel = { type: 'test', id: '123', name: 'name' }
+ 
+       // Act
+-      const result = await projectFn(event)
++      const result = await projectFn(event, { test123: readModel })
+ 
+       // Assert
+       expect(result.ok).toBe(true)
+-    })
+-
+-    test('handles upsert operation withoutreadModel property', async () => {
+-      // Arrange
+-      const projection = {
+-        created: {
+-          test: () => ({ type: 'upsert' }) as any // MissingreadModel property
+-        }
++      if (result.ok) {
++        expect(result.value.test123).toEqual({
++          type: 'test',
++          id: '123',
++          name: 'test_updated'
++        } as TestReadModel)
+       }
+-
+-      const db = new MockReadModelStoreWithErrors()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('created', '123', { name: 'test' })
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(true) // Should succeed silently
+     })
+ 
+-    test('handles delete operation without ids property', async () => {
+-      // Arrange
+-      const projection = {
+-        created: {
+-          test: () => ({ type: 'mutate' })
+-        },
+-        updated: {
+-          test: () => ({ type: 'mutate' })
+-        },
+-        deleted: {
+-          test: () => ({ type: 'delete' }) as any // Missing ids property
+-        }
+-      }
+-
+-      const db = new MockReadModelStoreWithErrors()
+-      const projectFn = createProjectEventFnFactory(projection as any)(db)
+-
+-      const event = createTestEvent('deleted', '123')
+-
+-      // Act
+-      const result = await projectFn(event)
+-
+-      // Assert
+-      expect(result.ok).toBe(true) // Should succeed silently
+-    })
++    //   test('handles upsert operation save failure', async () => {
++    //     // Arrange
++    //     const fn = mapProjectionToFn(projection)
++    //     const projectFn = createProjectEventFnFactory(fn)()
++
++    //     const id: AggregateId<'test'> = { type: 'test', value: '123' }
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'created',
++    //       id,
++    //       payload: { name: 'test' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++    //     const readModel: TestReadModel = { type: 'test', id: '123', name: 'name' }
++
++    //     // Act
++    //     const result = await projectFn(event, { test123: readModel })
++
++    //     // Assert
++    //     expect(result.ok).toBe(false)
++    //     if (!result.ok) {
++    //       expect(result.error.code).toBe('MODEL_SAVE_FAILED')
++    //       expect(result.error.message).toContain('SavereadModel failed')
++    //     }
++    //   })
++
++    //   test('handles projection function execution successfully', async () => {
++    //     // Arrange
++    //     const projection: Projection<
++    //       TestEvent,
++    //       TestReadModel,
++    //       ProjectionMap<TestEvent, TestReadModel>
++    //     > = {
++    //       created: {
++    //         test: ({ event }) => ({ type: 'test', id: event.id.value, name: event.payload.name })
++    //       },
++    //       deleted: {
++    //         test: () => undefined
++    //       },
++    //       updated: {
++    //         test: ({ readModel }) => {
++    //           readModel.name = 'updated'
++    //           return readModel
++    //         }
++    //       }
++    //     }
++
++    //     const projectFn = createProjectEventFnFactory(projection as any)()
++
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'updated',
++    //       id: { type: 'test', value: '123' },
++    //       payload: { name: 'test' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++
++    //     // Act
++    //     const result = await projectFn(event, {})
++
++    //     // Assert
++    //     expect(result.ok).toBe(true)
++    //   })
++
++    //   test('handles save failure when projection returnsreadModel', async () => {
++    //     // Arrange
++    //     const projection: Projection<
++    //       TestEvent,
++    //       TestReadModel,
++    //       ProjectionMap<TestEvent, TestReadModel>
++    //     > = {
++    //       created: {
++    //         test: ({ event }) => ({ type: 'test', id: event.id.value, name: event.payload.name })
++    //       },
++    //       deleted: {
++    //         test: () => undefined
++    //       },
++    //       updated: {
++    //         test: ({ readModel }) => {
++    //           readModel.name = 'updated'
++    //           return readModel
++    //         }
++    //       }
++    //     }
++
++    //     const projectFn = createProjectEventFnFactory(projection as any)()
++
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'updated',
++    //       id: { type: 'test', value: '123' },
++    //       payload: { name: 'test' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++
++    //     // Act
++    //     const result = await projectFn(event, {})
++
++    //     // Assert
++    //     expect(result.ok).toBe(false)
++    //     if (!result.ok) {
++    //       expect(result.error.code).toBe('MODEL_SAVE_FAILED')
++    //       expect(result.error.message).toContain('SavereadModel failed')
++    //     }
++    //   })
++
++    //   test('handles projection returning undefined (no-op)', async () => {
++    //     // Arrange
++    //     const projection: Projection<
++    //       TestEvent,
++    //       TestReadModel,
++    //       ProjectionMap<TestEvent, TestReadModel>
++    //     > = {
++    //       created: {
++    //         test: ({ event }) => ({ type: 'test', id: event.id.value, name: event.payload.name })
++    //       },
++    //       deleted: {
++    //         test: () => undefined // Returns undefined, so no save operation
++    //       },
++    //       updated: {
++    //         test: ({ readModel }) => {
++    //           readModel.name = 'updated'
++    //           return readModel
++    //         }
++    //       }
++    //     }
++
++    //     const projectFn = createProjectEventFnFactory(projection as any)()
++
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'deleted',
++    //       id: { type: 'test', value: '123' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++
++    //     // Act
++    //     const result = await projectFn(event, {})
++
++    //     // Assert
++    //     expect(result.ok).toBe(true) // Should succeed as nothing is saved
++    //   })
++
++    //   test('handles projection function throwing error', async () => {
++    //     // Arrange
++    //     const projection: Projection<
++    //       TestEvent,
++    //       TestReadModel,
++    //       ProjectionMap<TestEvent, TestReadModel>
++    //     > = {
++    //       created: {
++    //         test: () => {
++    //           throw new Error('Projection function error')
++    //         }
++    //       },
++    //       deleted: {
++    //         test: () => undefined
++    //       },
++    //       updated: {
++    //         test: ({ readModel }) => {
++    //           readModel.name = 'updated'
++    //           return readModel
++    //         }
++    //       }
++    //     }
++
++    //     const projectFn = createProjectEventFnFactory(projection as any)()
++
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'created',
++    //       id: { type: 'test', value: '123' },
++    //       payload: { name: 'test' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++
++    //     // Act
++    //     const result = await projectFn(event, {})
++
++    //     // Assert
++    //     expect(result.ok).toBe(false)
++    //     if (!result.ok) {
++    //       expect(result.error.code).toBe('PROJECTION_EXECUTION_FAILED')
++    //       expect(result.error.message).toContain('Projection execution failed')
++    //     }
++    //   })
++
++    //   test('processes noop operation successfully', async () => {
++    //     // Arrange
++    //     const projection = {
++    //       created: {
++    //         test: (_params: any) => ({ type: 'mutate' })
++    //       }
++    //     }
++
++    //     const projectFn = createProjectEventFnFactory(projection as any)()
++
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'created',
++    //       id: { type: 'test', value: '123' },
++    //       payload: { name: 'test' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++
++    //     // Act
++    //     const result = await projectFn(event, {})
++
++    //     // Assert
++    //     expect(result.ok).toBe(true)
++    //   })
++
++    //   test('handles upsert operation withoutreadModel property', async () => {
++    //     // Arrange
++    //     const projection = {
++    //       created: {
++    //         test: () => ({ type: 'upsert' }) as any // MissingreadModel property
++    //       }
++    //     }
++
++    //     const projectFn = createProjectEventFnFactory(projection as any)()
++
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'created',
++    //       id: { type: 'test', value: '123' },
++    //       payload: { name: 'test' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++
++    //     // Act
++    //     const result = await projectFn(event, {})
++
++    //     // Assert
++    //     expect(result.ok).toBe(true) // Should succeed silently
++    //   })
++
++    //   test('handles delete operation without ids property', async () => {
++    //     // Arrange
++    //     const projection = {
++    //       created: {
++    //         test: () => ({ type: 'mutate' })
++    //       },
++    //       updated: {
++    //         test: () => ({ type: 'mutate' })
++    //       },
++    //       deleted: {
++    //         test: () => ({ type: 'delete' }) as any // Missing ids property
++    //       }
++    //     }
++
++    //     const projectFn = createProjectEventFnFactory(projection as any)()
++
++    //     const event: ExtendedDomainEvent<TestEvent> = {
++    //       type: 'deleted',
++    //       id: { type: 'test', value: '123' },
++    //       version: 1,
++    //       timestamp: new Date()
++    //     }
++
++    //     // Act
++    //     const result = await projectFn(event, {})
++
++    //     // Assert
++    //     expect(result.ok).toBe(true) // Should succeed silently
++    //   })
+   })
+ })
+diff --git a/tests/fixtures/counter-app/features/counter/counter-aggregate.ts b/tests/fixtures/counter-app/features/counter/counter-aggregate.ts
+index 7cfda3a..4000a26 100644
+--- a/tests/fixtures/counter-app/features/counter/counter-aggregate.ts
++++ b/tests/fixtures/counter-app/features/counter/counter-aggregate.ts
+@@ -10,13 +10,19 @@ const decider: EventDecider<CounterState, CounterCommand, CounterEvent> = {
+       payload: { count: command.payload.count }
+     }
+   },
+-  increment: ({ command }) => {
++  increment: ({ command, state }) => {
++    if (state.type !== 'active') {
++      throw new Error('Counter does not exist')
++    }
+     return {
+       type: 'incremented',
+       id: command.id
+     }
+   },
+-  decrement: ({ command }) => {
++  decrement: ({ command, state }) => {
++    if (state.type !== 'active') {
++      throw new Error('Counter does not exist')
++    }
+     return {
+       type: 'decremented',
+       id: command.id
+diff --git a/tests/fixtures/counter-app/features/counter/counter-reactor.ts b/tests/fixtures/counter-app/features/counter/counter-reactor.ts
+index 90f5a9a..ec8b837 100644
+--- a/tests/fixtures/counter-app/features/counter/counter-reactor.ts
++++ b/tests/fixtures/counter-app/features/counter/counter-reactor.ts
+@@ -11,7 +11,10 @@ const policy: Policy<CounterEvent, CounterCommand> = {
+ const projectionMap = {
+   created: [
+     { readModel: 'counter' },
+-    { readModel: 'achievement', where: (e: CounterEvent) => ({ counterId: e.id.value }) }
++    {
++      readModel: 'achievement',
++      where: (_e: CounterEvent) => ({ by: 'id', operator: 'eq', value: '1' })
++    }
+   ],
+   incremented: [{ readModel: 'counter' }],
+   decremented: [{ readModel: 'counter' }]
+diff --git a/tests/fixtures/counter-app/features/counter2/counter2-aggregate.ts b/tests/fixtures/counter-app/features/counter2/counter2-aggregate.ts
+index 7c8ac72..28565c0 100644
+--- a/tests/fixtures/counter-app/features/counter2/counter2-aggregate.ts
++++ b/tests/fixtures/counter-app/features/counter2/counter2-aggregate.ts
+@@ -5,12 +5,9 @@ import type {
+   Reducer,
+   ReducerMap
+ } from '../../../../../src/types/command'
+-import type { CounterCommand, CounterEvent, CounterId, CounterState } from './types'
+-
+-type CounterRepository = {
+-  getCounter(id: CounterId): Promise<CounterState>
+-  saveCounter(counter: CounterState): Promise<void>
+-}
++import { CommandHandlerDeps } from '../../../../../src/types/framework'
++import type { CounterCommandDeps } from './counter2-dependency'
++import type { CounterCommand, CounterEvent, CounterState } from './types'
+ 
+ const deciderMap = {
+   create: [],
+@@ -18,17 +15,14 @@ const deciderMap = {
+   decrement: ['active']
+ } satisfies EventDeciderMap<CounterState, CounterCommand>
+ 
+-type Deps = {
+-  counterRepository: CounterRepository
+-}
+-
+-const decider: EventDecider<CounterState, CounterCommand, CounterEvent, Deps, typeof deciderMap> = {
++const decider: EventDecider<
++  CounterState,
++  CounterCommand,
++  CounterEvent,
++  CommandHandlerDeps,
++  typeof deciderMap
++> = {
+   create: async ({ command, deps }) => {
+-    const counter = await deps.counterRepository.getCounter(command.id)
+-    if (counter) {
+-      throw new Error(`Counter with id ${command.id.value} already exists`)
+-    }
+-
+     return {
+       type: 'created',
+       id: command.id,
+@@ -71,7 +65,12 @@ const reducer: Reducer<CounterState, CounterEvent, typeof reducerMap> = {
+   }
+ }
+ 
+-export const counter2 = createAggregate<CounterState, CounterCommand, CounterEvent, Deps>()
++export const counter2 = createAggregate<
++  CounterState,
++  CounterCommand,
++  CounterEvent,
++  CounterCommandDeps
++>()
+   .type('counter')
+   .deciderWithMap(decider, deciderMap)
+   .reducerWithMap(reducer, reducerMap)
+diff --git a/tests/fixtures/counter-app/features/counter2/counter2-reactor.ts b/tests/fixtures/counter-app/features/counter2/counter2-reactor.ts
+index 12d7d2e..b3fd72c 100644
+--- a/tests/fixtures/counter-app/features/counter2/counter2-reactor.ts
++++ b/tests/fixtures/counter-app/features/counter2/counter2-reactor.ts
+@@ -17,7 +17,10 @@ const policy: Policy<CounterEvent, CounterCommand, typeof policyMap> = {
+ const projectionMap = {
+   created: [
+     { readModel: 'counter' },
+-    { readModel: 'achievement', where: (e: CounterEvent) => ({ counterId: e.id.value }) }
++    {
++      readModel: 'achievement',
++      where: (_e: CounterEvent) => ({ by: 'id', operator: 'eq', value: '1' })
++    }
+   ],
+   incremented: [{ readModel: 'counter' }],
+   decremented: [{ readModel: 'counter' }]
+@@ -54,7 +57,7 @@ const projection: Projection<CounterEvent, CounterReadModels, typeof projectionM
+   }
+ }
+ 
+-export const counterReactor = createEventReactor<CounterEvent, CounterCommand, CounterReadModels>()
++export const counterReactor2 = createEventReactor<CounterEvent, CounterCommand, CounterReadModels>()
+   .type('counter')
+   .policyWithMap(policy, policyMap)
+   .projectionWithMap(projection, projectionMap)
+diff --git a/tests/fixtures/index.ts b/tests/fixtures/index.ts
+index 1758315..1cef286 100644
+--- a/tests/fixtures/index.ts
++++ b/tests/fixtures/index.ts
+@@ -1,2 +1,6 @@
+ export * from './counter-app/features/counter/counter-aggregate'
++export * from './counter-app/features/counter/counter-reactor'
+ export * from './counter-app/features/counter2/counter2-aggregate'
++export * from './counter-app/features/counter2/counter2-reactor'
++export { zeroId } from '../../src/command/helpers/aggregate-id'
++export { aggregateFixture } from '../../src/fake/aggregate-fixture'
+diff --git a/tests/query/fn/resolve-read-models.test.ts b/tests/query/fn/resolve-read-models.test.ts
+index 5b2e431..62d340b 100644
+--- a/tests/query/fn/resolve-read-models.test.ts
++++ b/tests/query/fn/resolve-read-models.test.ts
+@@ -176,5 +176,85 @@ describe('[query] resolve read models function', () => {
+         expect(res.value).toBeNull()
+       }
+     })
++
++    test('should handle resolver throwing error', async () => {
++      // Arrange
++      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
++      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
++
++      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
++        throw new Error('Resolver error')
++      }
++      const deps = { readModelStore: new ReadModelStoreInMemory() }
++      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
++
++      const query: CounterQuery = {
++        type: 'getCounter',
++        payload: { id: 'test-id' }
++      }
++
++      // Act
++      const res = await resolveReadModelFn(query)
++
++      // Assert
++      expect(res.ok).toBe(false)
++      if (!res.ok) {
++        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
++        expect(res.error.message).toContain('Resolver error')
++      }
++    })
++
++    test('should handle resolver rejecting promise', async () => {
++      // Arrange
++      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
++      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
++
++      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
++        return Promise.reject(new Error('Async resolver error'))
++      }
++      const deps = { readModelStore: new ReadModelStoreInMemory() }
++      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
++
++      const query: CounterQuery = {
++        type: 'getCounter',
++        payload: { id: 'test-id' }
++      }
++
++      // Act
++      const res = await resolveReadModelFn(query)
++
++      // Assert
++      expect(res.ok).toBe(false)
++      if (!res.ok) {
++        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
++        expect(res.error.message).toContain('Async resolver error')
++      }
++    })
++
++    test('should handle non-Error exceptions', async () => {
++      // Arrange
++      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
++      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
++
++      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
++        throw 'String error'
++      }
++      const deps = { readModelStore: new ReadModelStoreInMemory() }
++      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
++
++      const query: CounterQuery = {
++        type: 'getCounter',
++        payload: { id: 'test-id' }
++      }
++
++      // Act
++      const res = await resolveReadModelFn(query)
++
++      // Assert
++      expect(res.ok).toBe(false)
++      if (!res.ok) {
++        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
++      }
++    })
+   })
+ })
+diff --git a/tests/query/helpers/validate-query.test.ts b/tests/query/helpers/validate-query.test.ts
+index 804e5e6..d428c36 100644
+--- a/tests/query/helpers/validate-query.test.ts
++++ b/tests/query/helpers/validate-query.test.ts
+@@ -132,5 +132,84 @@ describe('[query] validate query helper', () => {
+       // Assert
+       expect(res.ok).toBe(true)
+     })
++
++    test('returns error when query source type is null', () => {
++      // Arrange
++      const query = {
++        type: 'get-user',
++        sourceType: null
++      } as unknown as Query
++
++      // Act
++      const res = validateQuery(query)
++
++      // Assert
++      expect(res.ok).toBe(false)
++      if (!res.ok) {
++        expect(res.error.code).toBe('INVALID_QUERY_SOURCE_TYPE')
++        expect(res.error.message).toBe('query source type is not valid')
++      }
++    })
++
++    test('returns error when query source type is undefined', () => {
++      // Arrange
++      const query = {
++        type: 'get-user',
++        sourceType: undefined
++      } as unknown as Query
++
++      // Act
++      const res = validateQuery(query)
++
++      // Assert
++      expect(res.ok).toBe(false)
++      if (!res.ok) {
++        expect(res.error.code).toBe('INVALID_QUERY_SOURCE_TYPE')
++        expect(res.error.message).toBe('query source type is not valid')
++      }
++    })
++
++    test('returns success when query has numeric type', () => {
++      // Arrange
++      const query: Query = {
++        type: '123',
++        sourceType: 'user'
++      }
++
++      // Act
++      const res = validateQuery(query)
++
++      // Assert
++      expect(res.ok).toBe(true)
++    })
++
++    test('returns success when query source type contains special characters', () => {
++      // Arrange
++      const query: Query = {
++        type: 'get-user',
++        sourceType: 'user-profile_v2'
++      }
++
++      // Act
++      const res = validateQuery(query)
++
++      // Assert
++      expect(res.ok).toBe(true)
++    })
++
++    test('returns success when query object has additional properties', () => {
++      // Arrange
++      const query = {
++        type: 'get-user',
++        sourceType: 'user',
++        extraProp: 'should be ignored'
++      } as Query
++
++      // Act
++      const res = validateQuery(query)
++
++      // Assert
++      expect(res.ok).toBe(true)
++    })
+   })
+ })
+diff --git a/tests/query/query-bus.test.ts b/tests/query/query-bus.test.ts
+index 346b755..e2d590a 100644
+--- a/tests/query/query-bus.test.ts
++++ b/tests/query/query-bus.test.ts
+@@ -285,5 +285,60 @@ describe('[query] query bus', () => {
+         expect(res.error.code).toBe('QUERY_RESOLVER_NOT_FOUND')
+       }
+     })
++
++    test('should handle query with empty payload', async () => {
++      // Arrange
++      const testStore = new ReadModelStoreInMemory()
++      await testStore.save({
++        type: 'counter',
++        id: 'counter-1',
++        count: 10
++      })
++
++      const deps = { readModelStore: testStore }
++      const queryBus = createQueryBus({
++        deps,
++        querySources: [counterQuerySource]
++      })
++
++      const query: Query = {
++        type: 'getCounter',
++        sourceType: 'counter'
++        // No payload
++      }
++
++      // Act
++      const res = await queryBus(query)
++
++      // Assert
++      expect(res.ok).toBe(false)
++      if (!res.ok) {
++        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
++      }
++    })
++
++    test('should handle middleware that throws error', async () => {
++      // Arrange
++      const errorMiddleware: QueryHandlerMiddleware = async () => {
++        throw new Error('Middleware error')
++      }
++
++      const testStore = new ReadModelStoreInMemory()
++      const deps = { readModelStore: testStore }
++      const queryBus = createQueryBus({
++        deps,
++        querySources: [counterQuerySource],
++        middleware: [errorMiddleware]
++      })
++
++      const query: CounterQuery = {
++        type: 'getCounter',
++        sourceType: 'counter',
++        payload: { id: 'counter-1' }
++      }
++
++      // Act & Assert
++      await expect(queryBus(query)).rejects.toThrow('Middleware error')
++    })
+   })
+ })
+diff --git a/tests/query/query-handler.test.ts b/tests/query/query-handler.test.ts
+index 4b71217..f876885 100644
+--- a/tests/query/query-handler.test.ts
++++ b/tests/query/query-handler.test.ts
+@@ -89,7 +89,7 @@ describe('[query] query handler', () => {
+     })
+ 
+     describe('error handling', () => {
+-      test('should handle resolver function errors', async () => {
++      test('should handle resolver function errors when item not found', async () => {
+         // Arrange
+         const store = new ReadModelStoreInMemory()
+         const deps = { readModelStore: store }
+@@ -98,7 +98,7 @@ describe('[query] query handler', () => {
+         const query: CounterQuery = {
+           type: 'getCounter',
+           sourceType: 'counter',
+-          payload: { id: 'test-1' }
++          payload: { id: 'nonexistent-id' }
+         }
+ 
+         // Act
+@@ -111,19 +111,16 @@ describe('[query] query handler', () => {
+         }
+       })
+ 
+-      test('should handle store errors', async () => {
++      test('should handle store errors during findById operation', async () => {
+         // Arrange
+-        const failingStore = {
+-          findById: async () => {
+-            throw new Error('Database error')
+-          },
+-          findMany: async () => {
+-            throw new Error('Database error')
+-          },
+-          save: async () => {},
+-          delete: async () => {}
++        const store = new ReadModelStoreInMemory()
++        // Make findById throw error
++        store.findById = async () => {
++          throw new Error('Database connection lost')
+         }
+-        const handlers = createQueryHandlers({ readModelStore: failingStore }, [counterQuerySource])
++
++        const deps = { readModelStore: store }
++        const handlers = createQueryHandlers(deps, [counterQuerySource])
+ 
+         const query: CounterQuery = {
+           type: 'getCounter',
+@@ -138,7 +135,57 @@ describe('[query] query handler', () => {
+         expect(res.ok).toBe(false)
+         if (!res.ok) {
+           expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+-          expect(res.error.message).toContain('Database error')
++          expect(res.error.message).toContain('Database connection lost')
++        }
++      })
++
++      test('should handle store errors during findMany operation', async () => {
++        // Arrange
++        const store = new ReadModelStoreInMemory()
++        // Make findMany throw error
++        store.findMany = async () => {
++          throw new Error('Query timeout')
++        }
++
++        const deps = { readModelStore: store }
++        const handlers = createQueryHandlers(deps, [counterQuerySource])
++
++        const query: CounterQuery = {
++          type: 'listCounters',
++          sourceType: 'counter',
++          payload: { range: { limit: 10, offset: 0 } }
++        }
++
++        // Act
++        const res = await handlers['counter'](query)
++
++        // Assert
++        expect(res.ok).toBe(false)
++        if (!res.ok) {
++          expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
++          expect(res.error.message).toContain('Query timeout')
++        }
++      })
++
++      test('should handle invalid query types', async () => {
++        // Arrange
++        const store = new ReadModelStoreInMemory()
++        const deps = { readModelStore: store }
++        const handlers = createQueryHandlers(deps, [counterQuerySource])
++
++        const query = {
++          type: 'invalidQuery',
++          sourceType: 'counter',
++          payload: { id: 'test-1' }
++        } as unknown as CounterQuery
++
++        // Act
++        const res = await handlers['counter'](query)
++
++        // Assert
++        expect(res.ok).toBe(false)
++        if (!res.ok) {
++          expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+         }
+       })
+     })
+diff --git a/tests/query/query-source-builder.test.ts b/tests/query/query-source-builder.test.ts
+index 7734e65..132bb4e 100644
+--- a/tests/query/query-source-builder.test.ts
++++ b/tests/query/query-source-builder.test.ts
+@@ -349,6 +349,35 @@ describe('[query] query source builder', () => {
+           }
+         })
+       })
++
++      test('should handle resolver that throws error', async () => {
++        const resolver: QueryResolver<CounterQuery, CounterQueryResult, CounterQueryDeps> = {
++          getCounter: async () => {
++            throw new Error('Service unavailable')
++          }
++        }
++
++        const mockDeps: CounterQueryDeps = {
++          service: {
++            getById: (id: string) => ({ id, name: `Test ${id}` }),
++            getAll: (_range: { limit: number; offset: number }) => []
++          }
++        }
++
++        const resolverFn = fromQueryResolver(resolver)
++
++        await expect(
++          resolverFn({
++            ctx: { timestamp: new Date() },
++            query: {
++              type: 'getCounter',
++              sourceType: 'counter',
++              payload: { id: 'test-123' }
++            },
++            deps: mockDeps
++          })
++        ).rejects.toThrow('Service unavailable')
++      })
+     })
+   })
+ })

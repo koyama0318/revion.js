@@ -23,7 +23,7 @@ export function createApplyEventFnFactory<
   S extends State,
   C extends Command,
   E extends DomainEvent,
-  D extends Record<string, unknown> = Record<string, unknown>
+  D
 >(
   eventDecider: EventDeciderFn<S, C, E, D>,
   reducer: ReducerFn<S, E>

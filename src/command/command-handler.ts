@@ -15,7 +15,7 @@ function createCommandHandlerFactory<
   S extends State,
   C extends Command,
   E extends DomainEvent,
-  D extends CommandHandlerDeps & Record<string, unknown>
+  D extends CommandHandlerDeps
 >(aggregate: Aggregate<S, C, E, D>): CommandHandlerFactory<D> {
   return (deps: D) => {
     const replayFn = createReplayEventFnFactory<S, E>(aggregate.reducer)(deps.eventStore)

@@ -10,3 +10,7 @@ export type ExtendedDomainEvent<T extends DomainEvent> = Readonly<T> & {
   readonly version: number
   readonly timestamp: Date
 }
+
+export type EventOf<E extends DomainEvent, T extends E['type']> = ExtendedDomainEvent<
+  Extract<E, { type: T }>
+>
