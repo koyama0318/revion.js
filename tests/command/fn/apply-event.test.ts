@@ -175,42 +175,5 @@ describe('[command] apply event function', () => {
         expect(res.value.state.count).toBe(42)
       }
     })
-
-    test('should pass deps to event decider function', async () => {
-      // Arrange
-      const testDeps = { externalService: { getValue: () => 99 } }
-      const decider = async ({ command, deps }: { command: CounterCommand; deps: any }) => {
-        return Promise.resolve({
-          type: 'created' as const,
-          id: command.id,
-          payload: { count: deps.externalService.getValue() }
-        })
-      }
-      const applyEventFn = createApplyEventFnFactory(decider, counter.reducer, testDeps)()
-
-      const id = zeroId('counter')
-      const state: ExtendedState<CounterState> = {
-        type: 'active',
-        id,
-        count: 0,
-        version: 0
-      }
-      const command: CounterCommand = {
-        type: 'create',
-        id,
-        payload: { count: 0 }
-      }
-
-      // Act
-      const res = await applyEventFn(state, command)
-
-      // Assert
-      expect(res).toBeDefined()
-      expect(res.ok).toBe(true)
-      if (res.ok) {
-        expect(res.value.event.payload).toEqual({ count: 99 })
-        expect(res.value.state.count).toBe(99)
-      }
-    })
   })
 })

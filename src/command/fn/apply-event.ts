@@ -22,13 +22,8 @@ type ApplyEventFn<S extends State, C extends Command, E extends DomainEvent> = (
 export function createApplyEventFnFactory<
   S extends State,
   C extends Command,
-  E extends DomainEvent,
-  D extends Record<string, unknown> = Record<string, unknown>
->(
-  eventDecider: EventDeciderFn<S, C, E, D>,
-  reducer: ReducerFn<S, E>,
-  deps: D
-): () => ApplyEventFn<S, C, E> {
+  E extends DomainEvent
+>(eventDecider: EventDeciderFn<S, C, E>, reducer: ReducerFn<S, E>): () => ApplyEventFn<S, C, E> {
   return () => {
     return async (state: ExtendedState<S>, command: C) => {
       const timestamp = new Date()
@@ -36,7 +31,7 @@ export function createApplyEventFnFactory<
       const deciderCtx: EventDeciderContext = {
         timestamp
       }
-      const eventRes = toResult(() => eventDecider({ ctx: deciderCtx, state, command, deps }))
+      const eventRes = toResult(() => eventDecider({ ctx: deciderCtx, state, command }))
       if (!eventRes.ok) {
         return err({
           code: 'EVENT_DECIDER_ERROR',
