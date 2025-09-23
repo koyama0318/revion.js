@@ -1,3 +1,4 @@
+import type { FilterCondition } from '../adapter'
 import type { DomainEvent, ReadModel } from '../core'
 
 export type ProjectionCtx = {
@@ -6,7 +7,7 @@ export type ProjectionCtx = {
 
 type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
   readModel: RM['type']
-  where?: (e: E) => Partial<RM>
+  where?: (e: E) => FilterCondition<Extract<RM, { type: RM['type'] }>>
 }
 
 export type ProjectionMap<E extends DomainEvent, RM extends ReadModel> = {

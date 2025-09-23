@@ -1,13 +1,5 @@
 import type { ReadModel } from '../core'
 
-export type ReadModelMap = Record<string, ReadModel>
-
-export type GetListOptions<T extends ReadModel> = {
-  filter?: FilterCondition<T>[]
-  sort?: SortOption<T>
-  range?: RangeOption
-}
-
 export type FilterCondition<T> = {
   by: keyof T & string
   operator:

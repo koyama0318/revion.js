@@ -11,7 +11,10 @@ const policy: Policy<CounterEvent, CounterCommand> = {
 const projectionMap = {
   created: [
     { readModel: 'counter' },
-    { readModel: 'achievement', where: (e: CounterEvent) => ({ counterId: e.id.value }) }
+    {
+      readModel: 'achievement',
+      where: (e: CounterEvent) => ({ by: 'id', operator: 'eq', value: e.id.value })
+    }
   ],
   incremented: [{ readModel: 'counter' }],
   decremented: [{ readModel: 'counter' }]

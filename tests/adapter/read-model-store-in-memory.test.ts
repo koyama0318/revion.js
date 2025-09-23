@@ -270,17 +270,14 @@ describe('[adapter] read model store in memory', () => {
       })
     })
 
-    describe('test helper methods', () => {
-      test('addTestData should add multiple models', () => {
-        store.addTestData(testUsers)
-
-        expect(store.storage.user).toBeDefined()
-        expect(Object.keys(store.storage.user)).toHaveLength(3)
-      })
-
+    describe('clear', () => {
       test('clear should remove all data', async () => {
-        store.addTestData(testUsers)
-        store.addTestData(testProducts)
+        for (const user of testUsers) {
+          await store.save(user)
+        }
+        for (const product of testProducts) {
+          await store.save(product)
+        }
 
         expect(Object.keys(store.storage)).toHaveLength(2)
 

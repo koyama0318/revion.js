@@ -9,7 +9,7 @@ type Deps = {
   readModelStore: ReadModelStoreInMemory
 }
 
-describe('[query] resolve read models function', () => {
+describe('resolve-read-models', () => {
   describe('createResolveReadModelFnFactory', () => {
     test('should return a function when resolver is provided', () => {
       // Arrange
@@ -174,6 +174,60 @@ describe('[query] resolve read models function', () => {
       expect(res.ok).toBe(true)
       if (res.ok) {
         expect(res.value).toBeNull()
+      }
+    })
+
+    test('should return error when resolver throws exception', async () => {
+      // Arrange
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
+        throw new Error('Database connection failed')
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        payload: { id: 'test-id' }
+      }
+
+      // Act
+      const res = await resolveReadModelFn(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+        expect(res.error.message).toContain('Database connection failed')
+      }
+    })
+
+    test('should return error when resolver rejects promise', async () => {
+      // Arrange
+      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
+        return Promise.reject(new Error('Async operation failed'))
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        payload: { id: 'test-id' }
+      }
+
+      // Act
+      const res = await resolveReadModelFn(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+        expect(res.error.message).toContain('Async operation failed')
       }
     })
   })

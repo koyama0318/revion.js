@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { validateQuery } from '../../../src/query/helpers/validate-query'
 import type { Query } from '../../../src/types/core/query'
 
-describe('[query] validate query helper', () => {
+describe('validate-query', () => {
   describe('validateQuery', () => {
     test('returns success when query has valid type', () => {
       // Arrange
@@ -159,42 +159,6 @@ describe('[query] validate query helper', () => {
       }
     })
 
-    test('returns error when query source type is empty string', () => {
-      // Arrange
-      const query = {
-        type: 'get-user',
-        sourceType: ''
-      } as unknown as Query
-
-      // Act
-      const res = validateQuery(query)
-
-      // Assert
-      expect(res.ok).toBe(false)
-      if (!res.ok) {
-        expect(res.error.code).toBe('INVALID_QUERY_SOURCE_TYPE')
-        expect(res.error.message).toBe('query source type is not valid')
-      }
-    })
-
-    test('returns error when query type is null', () => {
-      // Arrange
-      const query = {
-        type: null,
-        sourceType: 'user'
-      } as unknown as Query
-
-      // Act
-      const res = validateQuery(query)
-
-      // Assert
-      expect(res.ok).toBe(false)
-      if (!res.ok) {
-        expect(res.error.code).toBe('INVALID_QUERY_TYPE')
-        expect(res.error.message).toBe('query type is not valid')
-      }
-    })
-
     test('returns success when query type contains spaces', () => {
       // Arrange
       const query: Query = {
@@ -221,6 +185,78 @@ describe('[query] validate query helper', () => {
 
       // Assert
       expect(res.ok).toBe(true)
+    })
+
+    test('returns error when query type is null', () => {
+      // Arrange
+      const query = {
+        type: null,
+        sourceType: 'user'
+      } as unknown as Query
+
+      // Act
+      const res = validateQuery(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY_TYPE')
+        expect(res.error.message).toBe('query type is not valid')
+      }
+    })
+
+    test('returns error when query source type is empty string', () => {
+      // Arrange
+      const query = {
+        type: 'get-user',
+        sourceType: ''
+      } as unknown as Query
+
+      // Act
+      const res = validateQuery(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY_SOURCE_TYPE')
+        expect(res.error.message).toBe('query source type is not valid')
+      }
+    })
+
+    test('returns error when query source type is null', () => {
+      // Arrange
+      const query = {
+        type: 'get-user',
+        sourceType: null
+      } as unknown as Query
+
+      // Act
+      const res = validateQuery(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY_SOURCE_TYPE')
+        expect(res.error.message).toBe('query source type is not valid')
+      }
+    })
+
+    test('returns error when query source type is undefined', () => {
+      // Arrange
+      const query = {
+        type: 'get-user',
+        sourceType: undefined
+      } as unknown as Query
+
+      // Act
+      const res = validateQuery(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY_SOURCE_TYPE')
+        expect(res.error.message).toBe('query source type is not valid')
+      }
     })
   })
 })

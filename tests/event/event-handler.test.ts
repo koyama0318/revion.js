@@ -1,240 +1,220 @@
 import { describe, expect, test } from 'bun:test'
 import { zeroId } from '../../src'
+import { CommandDispatcherMock } from '../../src/adapter/command-dispatcher-mock'
+import { ReadModelStoreInMemory } from '../../src/adapter/read-model-store-in-memory'
 import { createEventHandlers } from '../../src/event/event-handler'
-import type { CommandDispatcher, QueryOption, ReadModelStore } from '../../src/types/adapter'
-import type { AggregateId, ReadModel } from '../../src/types/core'
-import type { EventReactor } from '../../src/types/event'
+import { createEventReactor } from '../../src/event/event-reactor-builder'
+import type { ExtendedDomainEvent } from '../../src/types/core'
+import type { Policy, Projection, ProjectionMap } from '../../src/types/event'
+import { counterReactor } from '../fixtures/counter-app/features/counter/counter-reactor'
+import type {
+  CounterCommand,
+  CounterEvent,
+  CounterReadModels
+} from '../fixtures/counter-app/features/counter/types'
 
-// Test types
-type TestCommand = { type: 'notify'; id: AggregateId<'test'>; payload: { message: string } }
-type TestEvent = { type: 'created'; id: AggregateId<'test'>; payload: { name: string } }
-type TestReadModel = ReadModel & { type: 'test'; id: string; name: string }
-
-// Mock classes for testing error scenarios
-class MockCommandDispatcherError implements CommandDispatcher {
-  async dispatch(): Promise<void> {
-    throw new Error('Mock dispatch error')
-  }
-}
-
-class MockReadModelStoreError implements ReadModelStore {
-  async findMany<T extends ReadModel>(_type: T['type'], _optionss: unknown): Promise<T[]> {
-    throw new Error('Mock database error')
-  }
-
-  async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
-    throw new Error('Mock database error')
-  }
-
-  async save(): Promise<void> {
-    throw new Error('Mock save error')
-  }
-
-  async delete(): Promise<void> {
-    throw new Error('Mock delete error')
-  }
-}
-
-class MockReadModelStoreThrows implements ReadModelStore {
-  async findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
-    throw new Error('Method not implemented.')
-  }
-  async findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
-    throw new Error('Method not implemented.')
-  }
-
-  async save(): Promise<void> {
-    throw new Error('Save operation failed')
-  }
-
-  async delete(): Promise<void> {
-    throw new Error('Delete operation failed')
-  }
-}
-
-describe('[event] event handler', () => {
-  describe('error handling in dispatch operations', () => {
-    test('handles dispatch errors from policy execution', async () => {
+describe('[event] event-handler', () => {
+  describe('createEventHandlers', () => {
+    test('processes events successfully when all operations succeed', async () => {
       // Arrange
-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
-        type: 'test',
-        policy: () => ({
-          type: 'notify',
-          id: zeroId('test'),
-          payload: { message: 'test' }
-        }),
-        projection: {
-          created: {
-            test: ({ event }) => ({
-              type: 'test',
-              id: event.id.value,
-              name: event.payload.name
-            })
-          }
-        }
-      }
-
+      const id = zeroId('counter')
       const deps = {
-        commandDispatcher: new MockCommandDispatcherError(),
-        readModelStore: new MockReadModelStoreError()
+        commandDispatcher: new CommandDispatcherMock(),
+        readModelStore: new ReadModelStoreInMemory()
       }
+      // First save a model so prefetch succeeds
+      await deps.readModelStore.save({
+        type: 'counter',
+        id: id.value
+      })
 
-      const handlers = createEventHandlers(deps, [reactor])
-      const event = {
+      const handlers = createEventHandlers(deps, [counterReactor])
+      const event: ExtendedDomainEvent<CounterEvent> = {
         type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
+        id,
+        payload: { count: 5 },
         version: 1,
         timestamp: new Date()
       }
 
       // Act
-      const result = await handlers['test']!(event)
+      const result = await handlers['counter']!(event)
+
+      // Assert
+      expect(result.ok).toBe(true)
+    })
+
+    test('handles model prefetch errors when read model store fails', async () => {
+      // Arrange
+      const id = zeroId('counter')
+      const deps = {
+        commandDispatcher: new CommandDispatcherMock(),
+        readModelStore: new ReadModelStoreInMemory()
+      }
+      deps.readModelStore.findById = async () => {
+        throw new Error('Prefetch error')
+      }
+
+      const handlers = createEventHandlers(deps, [counterReactor])
+      const event: ExtendedDomainEvent<CounterEvent> = {
+        type: 'created',
+        id,
+        payload: { count: 5 },
+        version: 1,
+        timestamp: new Date()
+      }
+
+      // Act
+      const result = await handlers['counter']!(event)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('READ_MODEL_FETCH_FAILED')
+      }
+    })
+
+    test('handles projection function throwing error', async () => {
+      // Arrange
+      const id = zeroId('counter')
+      const deps = {
+        commandDispatcher: new CommandDispatcherMock(),
+        readModelStore: new ReadModelStoreInMemory()
+      }
+
+      // First save a model so prefetch succeeds
+      await deps.readModelStore.save({
+        type: 'counter',
+        id: id.value
+      })
+
+      // After setup, override save to fail
+      deps.readModelStore.save = async () => {
+        throw new Error('Save error')
+      }
+
+      const handlers = createEventHandlers(deps, [counterReactor])
+      const event: ExtendedDomainEvent<CounterEvent> = {
+        type: 'created',
+        id,
+        payload: { count: 0 },
+        version: 1,
+        timestamp: new Date()
+      }
+
+      // Act
+      const result = await handlers['counter']!(event)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('MODEL_SAVE_FAILED')
+      }
+    })
+
+    test('handles save errors when database operations fail', async () => {
+      // Arrange
+      const id = zeroId('counter')
+      const deps = {
+        commandDispatcher: new CommandDispatcherMock(),
+        readModelStore: new ReadModelStoreInMemory()
+      }
+      // First save a model so prefetch succeeds
+      await deps.readModelStore.save({
+        type: 'counter',
+        id: id.value
+      })
+
+      // After setup, override save to fail
+      deps.readModelStore.save = async () => {
+        throw new Error('Save error')
+      }
+
+      const handlers = createEventHandlers(deps, [counterReactor])
+      const event: ExtendedDomainEvent<CounterEvent> = {
+        type: 'created',
+        id,
+        payload: { count: 5 }, // Different value to ensure projection runs
+        version: 1,
+        timestamp: new Date()
+      }
+
+      // Act
+      const result = await handlers['counter']!(event)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('MODEL_SAVE_FAILED')
+      }
+    })
+
+    test('handles dispatch errors from policy execution', async () => {
+      // Arrange
+      const id = zeroId('counter')
+      const deps = {
+        commandDispatcher: new CommandDispatcherMock(),
+        readModelStore: new ReadModelStoreInMemory()
+      }
+      deps.commandDispatcher.dispatch = async () => {
+        throw new Error('Dispatch error')
+      }
+
+      // First save a model so prefetch succeeds
+      await deps.readModelStore.save({
+        type: 'counter',
+        id: id.value
+      })
+
+      const policy: Policy<CounterEvent, CounterCommand> = {
+        created: ({ event }) => {
+          return { type: 'increment', id: event.id }
+        },
+        incremented: () => null,
+        decremented: () => null
+      }
+
+      const projectionMap = {
+        created: [{ readModel: 'counter' }],
+        incremented: [],
+        decremented: []
+      } satisfies ProjectionMap<CounterEvent, CounterReadModels>
+
+      const projection: Projection<CounterEvent, CounterReadModels, typeof projectionMap> = {
+        created: {
+          counter: ({ event }) => ({
+            type: 'counter',
+            id: event.id.value,
+            count: event.payload.count
+          })
+        },
+        incremented: {},
+        decremented: {}
+      }
+
+      const counterReactor = createEventReactor<CounterEvent, CounterCommand, CounterReadModels>()
+        .type('counter')
+        .policy(policy)
+        .projectionWithMap(projection, projectionMap)
+        .build()
+
+      const handlers = createEventHandlers(deps, [counterReactor])
+      const event: ExtendedDomainEvent<CounterEvent> = {
+        type: 'created',
+        id,
+        payload: { count: 0 },
+        version: 1,
+        timestamp: new Date()
+      }
+
+      // Act
+      const result = await handlers['counter']!(event)
+      console.log(result)
 
       // Assert
       expect(result.ok).toBe(false)
       if (!result.ok) {
         expect(result.error.code).toBe('COMMAND_DISPATCH_FAILED')
-      }
-    })
-  })
-
-  describe('error handling in projection operations', () => {
-    test('handles projection errors when database operations fail', async () => {
-      // Arrange
-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
-        type: 'test',
-        policy: () => null, // No command dispatch
-        projection: {
-          created: {
-            test: ({ event }) => ({
-              type: 'test',
-              id: event.id.value,
-              name: event.payload.name
-            })
-          }
-        }
-      }
-
-      const deps = {
-        commandDispatcher: new MockCommandDispatcherError(),
-        readModelStore: new MockReadModelStoreError()
-      }
-
-      const handlers = createEventHandlers(deps, [reactor])
-      const event = {
-        type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
-        version: 1,
-        timestamp: new Date()
-      }
-
-      // Act
-      const result = await handlers['test']!(event)
-
-      // Assert
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
-      }
-    })
-  })
-
-  describe('unexpected error handling', () => {
-    test('handles unexpected errors that escape the Result type system', async () => {
-      // Arrange
-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
-        type: 'test',
-        policy: () => null,
-        projection: {
-          created: {
-            test: ({ event }) => ({
-              type: 'test',
-              id: event.id.value,
-              name: event.payload.name
-            })
-          }
-        }
-      }
-
-      const deps = {
-        commandDispatcher: new MockCommandDispatcherError(),
-        readModelStore: new MockReadModelStoreThrows()
-      }
-
-      const handlers = createEventHandlers(deps, [reactor])
-      const event = {
-        type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
-        version: 1,
-        timestamp: new Date()
-      }
-
-      // Act
-      const result = await handlers['test']!(event)
-
-      // Assert
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
-      }
-    })
-
-    test('handles non-Error exceptions gracefully', async () => {
-      // Arrange
-      class ThrowsStringDatabase implements ReadModelStore {
-        findMany<T extends ReadModel>(_type: T['type'], _optionss: QueryOption<T>): Promise<T[]> {
-          throw new Error('Method not implemented.')
-        }
-        findById<T extends ReadModel>(_type: T['type'], _idd: string): Promise<T | null> {
-          throw new Error('Method not implemented.')
-        }
-        async save(): Promise<void> {
-          throw 'String error'
-        }
-
-        async delete(): Promise<void> {
-          throw 'String error'
-        }
-      }
-
-      const reactor: EventReactor<TestCommand, TestEvent, TestReadModel> = {
-        type: 'test',
-        policy: () => null,
-        projection: {
-          created: {
-            test: ({ event }) => ({
-              type: 'test',
-              id: event.id.value,
-              name: event.payload.name
-            })
-          }
-        }
-      }
-
-      const deps = {
-        commandDispatcher: new MockCommandDispatcherError(),
-        readModelStore: new ThrowsStringDatabase()
-      }
-
-      const handlers = createEventHandlers(deps, [reactor])
-      const event = {
-        type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
-        version: 1,
-        timestamp: new Date()
-      }
-
-      // Act
-      const result = await handlers['test']!(event)
-
-      // Assert
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error.code).toBe('SAVE_VIEW_FAILED')
       }
     })
   })

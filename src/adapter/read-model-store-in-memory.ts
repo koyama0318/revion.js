@@ -15,55 +15,62 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
 
     let items = Object.values(dataMap) as ModelOfType<M, T>[]
 
-    // filter
     if (options.filter) {
-      for (const filterCondition of options.filter) {
-        const { by, operator, value } = filterCondition
+      if (Array.isArray(options.filter)) {
+        for (const filterCondition of options.filter) {
+          const { by, operator, value } = filterCondition
+          items = items.filter(item => {
+            const itemValue = item[by]
+            switch (operator) {
+              case 'eq':
+                return itemValue === value
+              case 'ne':
+                return itemValue !== value
+              case 'gt':
+                return itemValue > value
+              case 'gte':
+                return itemValue >= value
+              case 'lt':
+                return itemValue < value
+              case 'lte':
+                return itemValue <= value
+              case 'in':
+                return Array.isArray(value) && value.includes(itemValue)
+              case 'nin':
+                return Array.isArray(value) && !value.includes(itemValue)
+              case 'contains':
+                return (
+                  typeof itemValue === 'string' &&
+                  typeof value === 'string' &&
+                  itemValue.includes(value)
+                )
+              case 'startsWith':
+                return (
+                  typeof itemValue === 'string' &&
+                  typeof value === 'string' &&
+                  itemValue.startsWith(value)
+                )
+              case 'endsWith':
+                return (
+                  typeof itemValue === 'string' &&
+                  typeof value === 'string' &&
+                  itemValue.endsWith(value)
+                )
+              default:
+                return false
+            }
+          })
+        }
+      } else {
+        const partialFilter = options.filter
         items = items.filter(item => {
-          const itemValue = item[by]
-          switch (operator) {
-            case 'eq':
-              return itemValue === value
-            case 'ne':
-              return itemValue !== value
-            case 'gt':
-              return itemValue > value
-            case 'gte':
-              return itemValue >= value
-            case 'lt':
-              return itemValue < value
-            case 'lte':
-              return itemValue <= value
-            case 'in':
-              return Array.isArray(value) && value.includes(itemValue)
-            case 'nin':
-              return Array.isArray(value) && !value.includes(itemValue)
-            case 'contains':
-              return (
-                typeof itemValue === 'string' &&
-                typeof value === 'string' &&
-                itemValue.includes(value)
-              )
-            case 'startsWith':
-              return (
-                typeof itemValue === 'string' &&
-                typeof value === 'string' &&
-                itemValue.startsWith(value)
-              )
-            case 'endsWith':
-              return (
-                typeof itemValue === 'string' &&
-                typeof value === 'string' &&
-                itemValue.endsWith(value)
-              )
-            default:
-              return false
-          }
+          return Object.entries(partialFilter).every(([key, value]) => {
+            return item[key as keyof typeof item] === value
+          })
         })
       }
     }
 
-    // sort
     if (options.sort) {
       const { by, order } = options.sort
       items = [...items].sort((a, b) => {
@@ -77,7 +84,6 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
       })
     }
 
-    // pagination
     const offset = options.range?.offset ?? 0
     const limit = options.range?.limit ?? items.length
     const paged = items.slice(offset, offset + limit)
@@ -86,9 +92,12 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
   }
 
   async findById<T extends M['type']>(type: T, id: string): Promise<ModelOfType<M, T> | null> {
-    const typeStorage = this.storage[type as string] || {}
+    const typeStorage = this.storage[type as string]
+    if (!typeStorage) return null
+
     const readModel = typeStorage[id]
     if (!readModel) return null
+
     return readModel as ModelOfType<M, T>
   }
 
@@ -102,15 +111,6 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
     const typeStorage = this.storage[model.type]
     if (typeStorage) {
       delete typeStorage[model.id]
-    }
-  }
-
-  // Test helper methods
-  addTestData(models: M[]): void {
-    for (const model of models) {
-      const typeStorage = this.storage[model.type] || {}
-      typeStorage[model.id] = model
-      this.storage[model.type] = typeStorage
     }
   }
 
