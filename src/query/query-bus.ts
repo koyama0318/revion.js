@@ -7,14 +7,14 @@ import { createQueryHandlers } from './query-handler'
 
 export function createQueryBus({
   deps,
-  querySources,
+  querySources = [],
   middleware = []
 }: {
   deps: QueryHandlerDeps
   querySources?: AnyQuerySource[]
   middleware?: QueryHandlerMiddleware[]
 }): QueryHandler {
-  const handlers = querySources ? createQueryHandlers(deps, querySources) : {}
+  const handlers = createQueryHandlers(deps, querySources)
 
   const applyMiddleware = (handler: QueryHandler): QueryHandler => {
     return middleware.reduceRight<QueryHandler>((next, m) => {

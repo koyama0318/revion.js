@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { ReadModelStoreInMemory } from '../../../src/adapter/read-model-store-in-memory'
-import { createResolveReadModelFnFactory } from '../../../src/query/fn/resolve-read-models'
+import { createResolveReadModelFnFactory } from '../../../src/query/fn/resolve-read-model'
 import type { ResolverContext, ResolverFn } from '../../../src/types/query/resolver-fn'
 import type { CounterQuery, CounterQueryResult } from '../../fixtures/counter-app/features/counter'
 import type { CounterReadModel } from '../../fixtures/counter-app/shared/readmodel'
