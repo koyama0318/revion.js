@@ -2,21 +2,23 @@ import type { Query, QueryResult, QueryResultData } from '../types/core'
 import type { QueryHandler, QueryHandlerDeps } from '../types/framework'
 import type { AnyQuerySource, QuerySource } from '../types/query/query-source'
 import { ok } from '../utils/result'
-import { createResolveReadModelFnFactory } from './fn/resolve-read-models'
+import { createResolveReadModelFnFactory } from './fn/resolve-read-model'
 
-type QueryHandlerFactory<D extends QueryHandlerDeps> = (deps: D) => QueryHandler
+type QueryHandlerFactory<D extends QueryHandlerDeps = QueryHandlerDeps> = (deps: D) => QueryHandler
 
 function createQueryHandlerFactory<
   Q extends Query,
   QR extends QueryResultData,
-  D extends QueryHandlerDeps & Record<string, unknown>
->(source: QuerySource<Q, QR, D>): QueryHandlerFactory<D> {
+  D extends QueryHandlerDeps
+>(source: QuerySource<Q, QR>): QueryHandlerFactory<D> {
   return (deps: D) => {
-    const resolve = createResolveReadModelFnFactory(source.queryResolver)(deps)
+    const resolveFn = createResolveReadModelFnFactory<Q, QR>(source.queryResolver)(
+      deps.readModelStore
+    )
 
     // Handles aggregate creation or update based on the incoming query
     return async (query: Query): QueryResult => {
-      const resolved = await resolve(query as Q)
+      const resolved = await resolveFn(query as Q)
       if (!resolved.ok) return resolved
 
       return ok({
