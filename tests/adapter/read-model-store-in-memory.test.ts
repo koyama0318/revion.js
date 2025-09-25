@@ -185,7 +185,10 @@ describe('[adapter] read model store in memory', () => {
 
         test('should filter by partial object', async () => {
           const users = await store.findMany('user', {
-            filter: { name: 'Alice', age: 25 }
+            filter: [
+              { by: 'name', operator: 'eq', value: 'Alice' },
+              { by: 'age', operator: 'eq', value: 25 }
+            ]
           })
           expect(users).toHaveLength(1)
           expect(users[0].name).toBe('Alice')
@@ -194,7 +197,10 @@ describe('[adapter] read model store in memory', () => {
 
         test('should filter by partial object with no matches', async () => {
           const users = await store.findMany('user', {
-            filter: { name: 'Alice', age: 999 }
+            filter: [
+              { by: 'name', operator: 'eq', value: 'Alice' },
+              { by: 'age', operator: 'eq', value: 999 }
+            ]
           })
           expect(users).toHaveLength(0)
         })

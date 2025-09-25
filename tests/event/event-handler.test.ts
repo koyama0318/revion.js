@@ -6,7 +6,7 @@ import { createEventHandlers } from '../../src/event/event-handler'
 import { createEventReactor } from '../../src/event/event-reactor-builder'
 import type { ExtendedDomainEvent } from '../../src/types/core'
 import type { Policy, Projection, ProjectionMap } from '../../src/types/event'
-import { counterReactor } from '../fixtures/counter-app/features/counter/counter-reactor'
+import { counterReactor } from '../fixtures/counter-app/features/counter'
 import type {
   CounterCommand,
   CounterEvent,
