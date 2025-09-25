@@ -15,8 +15,7 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
 
     let items = Object.values(dataMap) as ModelOfType<M, T>[]
 
-    // filter
-    if (options.filter) {
+    if (options.filter && Array.isArray(options.filter)) {
       for (const filterCondition of options.filter) {
         const { by, operator, value } = filterCondition
         items = items.filter(item => {
@@ -63,7 +62,6 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
       }
     }
 
-    // sort
     if (options.sort) {
       const { by, order } = options.sort
       items = [...items].sort((a, b) => {
@@ -77,7 +75,6 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
       })
     }
 
-    // pagination
     const offset = options.range?.offset ?? 0
     const limit = options.range?.limit ?? items.length
     const paged = items.slice(offset, offset + limit)
@@ -86,14 +83,18 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
   }
 
   async findById<T extends M['type']>(type: T, id: string): Promise<ModelOfType<M, T> | null> {
-    const typeStorage = this.storage[type as string] || {}
+    const typeStorage = this.storage[type as string]
+    if (!typeStorage) return null
+
     const readModel = typeStorage[id]
     if (!readModel) return null
+
     return readModel as ModelOfType<M, T>
   }
 
   async save(model: M): Promise<void> {
     const typeStorage = this.storage[model.type] || {}
+    if (typeStorage[model.id]) return
     typeStorage[model.id] = model
     this.storage[model.type] = typeStorage
   }
@@ -102,15 +103,6 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
     const typeStorage = this.storage[model.type]
     if (typeStorage) {
       delete typeStorage[model.id]
-    }
-  }
-
-  // Test helper methods
-  addTestData(models: M[]): void {
-    for (const model of models) {
-      const typeStorage = this.storage[model.type] || {}
-      typeStorage[model.id] = model
-      this.storage[model.type] = typeStorage
     }
   }
 
