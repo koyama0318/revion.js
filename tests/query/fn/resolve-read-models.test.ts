@@ -5,15 +5,11 @@ import type { ResolverContext, ResolverFn } from '../../../src/types/query/resol
 import type { CounterQuery, CounterQueryResult } from '../../fixtures/counter-app/features/counter'
 import type { CounterReadModel } from '../../fixtures/counter-app/shared/readmodel'
 
-type Deps = {
-  readModelStore: ReadModelStoreInMemory
-}
-
-describe('[query] resolve read models function', () => {
+describe('resolve-read-models', () => {
   describe('createResolveReadModelFnFactory', () => {
     test('should return a function when resolver is provided', () => {
       // Arrange
-      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = async () => {
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult> = async () => {
         return {
           type: 'getCounter',
           item: { type: 'counter', id: '1', count: 0 }
@@ -22,7 +18,7 @@ describe('[query] resolve read models function', () => {
       const deps = { readModelStore: new ReadModelStoreInMemory() }
 
       // Act
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps.readModelStore)
 
       // Assert
       expect(resolveReadModelFn).toBeDefined()
@@ -31,10 +27,10 @@ describe('[query] resolve read models function', () => {
 
     test('should return successful result when resolver executes successfully', async () => {
       // Arrange
-      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQuery = { type: 'getCounter'; sourceType: 'counter'; payload: { id: string } }
       type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
 
-      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = ({ query }) => {
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult> = ({ query }) => {
         return Promise.resolve({
           type: 'getCounter',
           item: {
@@ -45,10 +41,11 @@ describe('[query] resolve read models function', () => {
         })
       }
       const deps = { readModelStore: new ReadModelStoreInMemory() }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps.readModelStore)
 
       const query: CounterQuery = {
         type: 'getCounter',
+        sourceType: 'counter',
         payload: { id: 'test-id' }
       }
 
@@ -71,11 +68,11 @@ describe('[query] resolve read models function', () => {
 
     test('should pass context to resolver function', async () => {
       // Arrange
-      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQuery = { type: 'getCounter'; sourceType: 'counter'; payload: { id: string } }
       type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
 
       let receivedContext: unknown
-      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = ({ ctx, query }) => {
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult> = ({ ctx, query }) => {
         receivedContext = ctx
         return Promise.resolve({
           type: 'getCounter',
@@ -87,10 +84,11 @@ describe('[query] resolve read models function', () => {
         })
       }
       const deps = { readModelStore: new ReadModelStoreInMemory() }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps.readModelStore)
 
       const query: CounterQuery = {
         type: 'getCounter',
+        sourceType: 'counter',
         payload: { id: 'test-id' }
       }
 
@@ -105,7 +103,7 @@ describe('[query] resolve read models function', () => {
 
     test('should pass deps to resolver function', async () => {
       // Arrange
-      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQuery = { type: 'getCounter'; sourceType: 'counter'; payload: { id: string } }
       type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
 
       const testStore = new ReadModelStoreInMemory()
@@ -113,9 +111,9 @@ describe('[query] resolve read models function', () => {
         type: 'counter',
         id: 'test-id',
         count: 55
-      })
-      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = ({ query, deps }) => {
-        return deps.readModelStore.findById('counter', query.payload.id).then(readModel => {
+      } as CounterReadModel)
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult> = ({ query, store }) => {
+        return store.findById('counter', query.payload.id).then(readModel => {
           if (!readModel) {
             throw new Error('Not found')
           }
@@ -127,10 +125,11 @@ describe('[query] resolve read models function', () => {
       }
 
       const deps = { readModelStore: testStore }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps.readModelStore)
 
       const query: CounterQuery = {
         type: 'getCounter',
+        sourceType: 'counter',
         payload: { id: 'test-id' }
       }
 
@@ -153,17 +152,18 @@ describe('[query] resolve read models function', () => {
 
     test('should handle resolver returning null', async () => {
       // Arrange
-      type CounterQuery = { type: 'getCounter'; payload: { id: string } }
+      type CounterQuery = { type: 'getCounter'; sourceType: 'counter'; payload: { id: string } }
       type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
 
-      const resolver: ResolverFn<CounterQuery, CounterQueryResult, Deps> = () => {
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult> = () => {
         return null as unknown as Promise<CounterQueryResult>
       }
       const deps = { readModelStore: new ReadModelStoreInMemory() }
-      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps)
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps.readModelStore)
 
       const query: CounterQuery = {
         type: 'getCounter',
+        sourceType: 'counter',
         payload: { id: 'test-id' }
       }
 
@@ -174,6 +174,62 @@ describe('[query] resolve read models function', () => {
       expect(res.ok).toBe(true)
       if (res.ok) {
         expect(res.value).toBeNull()
+      }
+    })
+
+    test('should return error when resolver throws exception', async () => {
+      // Arrange
+      type CounterQuery = { type: 'getCounter'; sourceType: 'counter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult> = () => {
+        throw new Error('Database connection failed')
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps.readModelStore)
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        sourceType: 'counter',
+        payload: { id: 'test-id' }
+      }
+
+      // Act
+      const res = await resolveReadModelFn(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+        expect(res.error.message).toContain('Database connection failed')
+      }
+    })
+
+    test('should return error when resolver rejects promise', async () => {
+      // Arrange
+      type CounterQuery = { type: 'getCounter'; sourceType: 'counter'; payload: { id: string } }
+      type CounterQueryResult = { type: 'getCounter'; item: CounterReadModel }
+
+      const resolver: ResolverFn<CounterQuery, CounterQueryResult> = () => {
+        return Promise.reject(new Error('Async operation failed'))
+      }
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const resolveReadModelFn = createResolveReadModelFnFactory(resolver)(deps.readModelStore)
+
+      const query: CounterQuery = {
+        type: 'getCounter',
+        sourceType: 'counter',
+        payload: { id: 'test-id' }
+      }
+
+      // Act
+      const res = await resolveReadModelFn(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('RESOLVER_EXECUTION_FAILED')
+        expect(res.error.message).toContain('Async operation failed')
       }
     })
   })

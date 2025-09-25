@@ -8,6 +8,7 @@ import type {
   CounterQuery,
   CounterQueryResult
 } from '../fixtures/counter-app/features/counter2/types'
+import type { CounterReadModel } from '../fixtures/counter-app/shared/readmodel'
 
 describe('[query] query bus', () => {
   describe('createQueryBus', () => {
@@ -72,7 +73,7 @@ describe('[query] query bus', () => {
         type: 'counter',
         id: 'counter-1',
         count: 10
-      })
+      } as CounterReadModel)
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
@@ -107,17 +108,17 @@ describe('[query] query bus', () => {
         type: 'counter',
         id: 'counter-1',
         count: 10
-      })
+      } as CounterReadModel)
       await testStore.save({
         type: 'counter',
         id: 'counter-2',
         count: 20
-      })
+      } as CounterReadModel)
       await testStore.save({
         type: 'counter',
         id: 'counter-3',
         count: 30
-      })
+      } as CounterReadModel)
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
@@ -186,7 +187,7 @@ describe('[query] query bus', () => {
         type: 'counter',
         id: 'counter-1',
         count: 10
-      })
+      } as CounterReadModel)
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
@@ -237,7 +238,7 @@ describe('[query] query bus', () => {
         type: 'counter',
         id: 'counter-1',
         count: 10
-      })
+      } as CounterReadModel)
 
       const deps = { readModelStore: testStore }
       const queryBus = createQueryBus({
