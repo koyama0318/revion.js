@@ -3,7 +3,7 @@ import { id, zeroId } from '../../../src/command/helpers/aggregate-id'
 import { validateEvent } from '../../../src/event/helpers/validate-domain-event'
 import type { AggregateId, DomainEvent } from '../../../src/types/core'
 
-describe('[event] validate domain event', () => {
+describe('[event] validate-domain-event', () => {
   describe('validateEvent', () => {
     test('returns success for valid event with payload', () => {
       // Arrange
@@ -148,6 +148,25 @@ describe('[event] validate domain event', () => {
       expect(result.ok).toBe(true)
       if (result.ok) {
         expect(result.value).toBe(undefined)
+      }
+    })
+
+    test('returns error when aggregate ID is undefined', () => {
+      // Arrange
+      const invalidId: AggregateId = undefined as unknown as AggregateId
+      const event: DomainEvent = {
+        type: 'created',
+        id: invalidId,
+        payload: { value: 42 }
+      }
+
+      // Act
+      const result = validateEvent(event)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('INVALID_AGGREGATE_ID')
       }
     })
 

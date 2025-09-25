@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { zeroId } from '../../src/command/helpers/aggregate-id'
 import { createEventReactor } from '../../src/event/event-reactor-builder'
+import { mapProjectionToFn } from '../../src/event/mapper/map-to-projection-fn'
 import type { AggregateId, ReadModel } from '../../src/types/core'
 import type { Policy, PolicyMap, Projection, ProjectionMap } from '../../src/types/event'
 
@@ -22,51 +23,7 @@ type TestReadModel = ReadModel & {
   updatedAt: Date
 }
 
-const testPolicy: Policy<TestEvent, TestCommand> = {
-  created: ({ event }) => ({
-    type: 'notify',
-    id: event.id,
-    payload: { message: `Item ${event.payload.name} was created` }
-  }),
-  updated: ({ event }) => ({
-    type: 'alert',
-    id: event.id,
-    payload: { level: 'info' }
-  }),
-  deleted: () => null
-}
-
-const testProjection = {
-  created: {
-    test: ({ ctx, event }: any) => {
-      const typedEvent = event as Extract<TestEvent, { type: 'created' }>
-      return {
-        type: 'test' as const,
-        id: typedEvent.id.value,
-        name: typedEvent.payload.name,
-        status: 'active' as const,
-        createdAt: ctx.timestamp,
-        updatedAt: ctx.timestamp
-      }
-    }
-  },
-  updated: {
-    test: ({ ctx, readModel, event }: any) => {
-      const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
-      readModel.name = typedEvent.payload.name
-      readModel.updatedAt = ctx.timestamp
-      return readModel
-    }
-  },
-  deleted: {
-    test: () => {
-      // For delete operations, we don't return areadModel
-      return undefined
-    }
-  }
-} satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
-
-describe('[event] event reactor builder', () => {
+describe('[event] event-reactor-builder', () => {
   describe('createEventReactor', () => {
     test('creates event reactor builder instance', () => {
       // Arrange & Act
@@ -80,7 +37,51 @@ describe('[event] event reactor builder', () => {
 
   describe('event reactor building and functionality', () => {
     test('builds functioning event reactor with basic configuration', () => {
-      // Arrange & Act
+      // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
+      const testProjection = {
+        created: {
+          test: ({ ctx, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'created' }>
+            return {
+              type: 'test' as const,
+              id: typedEvent.id.value,
+              name: typedEvent.payload.name,
+              status: 'active' as const,
+              createdAt: ctx.timestamp,
+              updatedAt: ctx.timestamp
+            }
+          }
+        },
+        updated: {
+          test: ({ ctx, readModel, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
+            readModel.name = typedEvent.payload.name
+            readModel.updatedAt = ctx.timestamp
+            return readModel
+          }
+        },
+        deleted: {
+          test: () => {
+            return undefined
+          }
+        }
+      } satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
+
+      // Act
       const reactor = createEventReactor<TestEvent, TestCommand, TestReadModel>()
         .type('test')
         .policy(testPolicy)
@@ -91,11 +92,54 @@ describe('[event] event reactor builder', () => {
       expect(reactor).toBeDefined()
       expect(reactor.type).toBe('test')
       expect(typeof reactor.policy).toBe('function')
-      expect(typeof reactor.projection).toBe('function')
+      expect(typeof reactor.projection).toBe('object')
     })
 
     test('builds functioning event reactor with policy and projection maps', () => {
       // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
+      const testProjection = {
+        created: {
+          test: ({ ctx, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'created' }>
+            return {
+              type: 'test' as const,
+              id: typedEvent.id.value,
+              name: typedEvent.payload.name,
+              status: 'active' as const,
+              createdAt: ctx.timestamp,
+              updatedAt: ctx.timestamp
+            }
+          }
+        },
+        updated: {
+          test: ({ ctx, readModel, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
+            readModel.name = typedEvent.payload.name
+            readModel.updatedAt = ctx.timestamp
+            return readModel
+          }
+        },
+        deleted: {
+          test: () => {
+            return undefined
+          }
+        }
+      } satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
+
       const policyMap: PolicyMap<TestEvent, TestCommand> = {
         created: ['notify'],
         updated: ['alert'],
@@ -118,11 +162,54 @@ describe('[event] event reactor builder', () => {
       // Assert
       expect(reactor.type).toBe('test')
       expect(typeof reactor.policy).toBe('function')
-      expect(typeof reactor.projection).toBe('function')
+      expect(typeof reactor.projection).toBe('object')
     })
 
     test('builds functioning event reactor with policy map and projection', () => {
       // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
+      const testProjection = {
+        created: {
+          test: ({ ctx, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'created' }>
+            return {
+              type: 'test' as const,
+              id: typedEvent.id.value,
+              name: typedEvent.payload.name,
+              status: 'active' as const,
+              createdAt: ctx.timestamp,
+              updatedAt: ctx.timestamp
+            }
+          }
+        },
+        updated: {
+          test: ({ ctx, readModel, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
+            readModel.name = typedEvent.payload.name
+            readModel.updatedAt = ctx.timestamp
+            return readModel
+          }
+        },
+        deleted: {
+          test: () => {
+            return undefined
+          }
+        }
+      } satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
+
       const policyMap: PolicyMap<TestEvent, TestCommand> = {
         created: ['notify'],
         updated: ['alert'],
@@ -139,11 +226,54 @@ describe('[event] event reactor builder', () => {
       // Assert
       expect(reactor.type).toBe('test')
       expect(typeof reactor.policy).toBe('function')
-      expect(typeof reactor.projection).toBe('function')
+      expect(typeof reactor.projection).toBe('object')
     })
 
     test('builds functioning event reactor with policy and projection map', () => {
       // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
+      const testProjection = {
+        created: {
+          test: ({ ctx, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'created' }>
+            return {
+              type: 'test' as const,
+              id: typedEvent.id.value,
+              name: typedEvent.payload.name,
+              status: 'active' as const,
+              createdAt: ctx.timestamp,
+              updatedAt: ctx.timestamp
+            }
+          }
+        },
+        updated: {
+          test: ({ ctx, readModel, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
+            readModel.name = typedEvent.payload.name
+            readModel.updatedAt = ctx.timestamp
+            return readModel
+          }
+        },
+        deleted: {
+          test: () => {
+            return undefined
+          }
+        }
+      } satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
+
       const projectionMap: ProjectionMap<TestEvent, TestReadModel> = {
         created: [{ readModel: 'test' }],
         updated: [{ readModel: 'test' }],
@@ -160,11 +290,54 @@ describe('[event] event reactor builder', () => {
       // Assert
       expect(reactor.type).toBe('test')
       expect(typeof reactor.policy).toBe('function')
-      expect(typeof reactor.projection).toBe('function')
+      expect(typeof reactor.projection).toBe('object')
     })
 
     test('created reactor processes policy correctly', () => {
       // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
+      const testProjection = {
+        created: {
+          test: ({ ctx, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'created' }>
+            return {
+              type: 'test' as const,
+              id: typedEvent.id.value,
+              name: typedEvent.payload.name,
+              status: 'active' as const,
+              createdAt: ctx.timestamp,
+              updatedAt: ctx.timestamp
+            }
+          }
+        },
+        updated: {
+          test: ({ ctx, readModel, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
+            readModel.name = typedEvent.payload.name
+            readModel.updatedAt = ctx.timestamp
+            return readModel
+          }
+        },
+        deleted: {
+          test: () => {
+            return undefined
+          }
+        }
+      } satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
+
       const reactor = createEventReactor<TestEvent, TestCommand, TestReadModel>()
         .type('test')
         .policy(testPolicy)
@@ -196,6 +369,49 @@ describe('[event] event reactor builder', () => {
 
     test('created reactor handles events with no policy response', () => {
       // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
+      const testProjection = {
+        created: {
+          test: ({ ctx, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'created' }>
+            return {
+              type: 'test' as const,
+              id: typedEvent.id.value,
+              name: typedEvent.payload.name,
+              status: 'active' as const,
+              createdAt: ctx.timestamp,
+              updatedAt: ctx.timestamp
+            }
+          }
+        },
+        updated: {
+          test: ({ ctx, readModel, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
+            readModel.name = typedEvent.payload.name
+            readModel.updatedAt = ctx.timestamp
+            return readModel
+          }
+        },
+        deleted: {
+          test: () => {
+            return undefined
+          }
+        }
+      } satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
+
       const reactor = createEventReactor<TestEvent, TestCommand, TestReadModel>()
         .type('test')
         .policy(testPolicy)
@@ -221,7 +437,50 @@ describe('[event] event reactor builder', () => {
     })
 
     test('created reactor has correct projection functionality', () => {
-      // Arrange & Act
+      // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
+      const testProjection = {
+        created: {
+          test: ({ ctx, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'created' }>
+            return {
+              type: 'test' as const,
+              id: typedEvent.id.value,
+              name: typedEvent.payload.name,
+              status: 'active' as const,
+              createdAt: ctx.timestamp,
+              updatedAt: ctx.timestamp
+            }
+          }
+        },
+        updated: {
+          test: ({ ctx, readModel, event }: any) => {
+            const typedEvent = event as Extract<TestEvent, { type: 'updated' }>
+            readModel.name = typedEvent.payload.name
+            readModel.updatedAt = ctx.timestamp
+            return readModel
+          }
+        },
+        deleted: {
+          test: () => {
+            return undefined
+          }
+        }
+      } satisfies Projection<TestEvent, TestReadModel, ProjectionMap<TestEvent, TestReadModel>>
+
       const reactor = createEventReactor<TestEvent, TestCommand, TestReadModel>()
         .type('test')
         .policy(testPolicy)
@@ -250,12 +509,13 @@ describe('[event] event reactor builder', () => {
         readModel: readModel
       }
 
+      // Act
+      const projectionFn = mapProjectionToFn(reactor.projection)
+      const result = projectionFn(projectionParams)
+
       // Assert
       expect(reactor.projection).toBeDefined()
-      expect(typeof reactor.projection).toBe('function')
-
-      // Test that projection function works correctly
-      const result = reactor.projection(projectionParams)
+      expect(typeof reactor.projection).toBe('object')
       expect(result).toBeDefined()
       expect(result.name).toBe('Test Item')
       expect(result.status).toBe('active')
@@ -263,6 +523,20 @@ describe('[event] event reactor builder', () => {
 
     test('throws error when building incomplete reactor', () => {
       // Arrange
+      const testPolicy: Policy<TestEvent, TestCommand> = {
+        created: ({ event }) => ({
+          type: 'notify',
+          id: event.id,
+          payload: { message: `Item ${event.payload.name} was created` }
+        }),
+        updated: ({ event }) => ({
+          type: 'alert',
+          id: event.id,
+          payload: { level: 'info' }
+        }),
+        deleted: () => null
+      }
+
       const incompleteBuilder = createEventReactor<TestEvent, TestCommand, TestReadModel>()
         .type('test')
         .policy(testPolicy)
