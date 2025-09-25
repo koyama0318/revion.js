@@ -1,4 +1,3 @@
-import type { Draft } from 'immer'
 import type { Command, DomainEvent, ReadModel } from '../types/core'
 import type {
   EventReactor,
@@ -7,9 +6,7 @@ import type {
   PolicyMap,
   PolicyParams,
   Projection,
-  ProjectionFn,
-  ProjectionMap,
-  ProjectionParams
+  ProjectionMap
 } from '../types/event'
 
 /**
@@ -120,55 +117,6 @@ function fromPolicy<E extends DomainEvent, C extends Command>(
   }
 }
 
-/**
- * Helper to safely convert any projection to ProjectionFn
- */
-function createProjectionFn<E extends DomainEvent, RM extends ReadModel>(
-  projection: Projection<E, RM, ProjectionMap<E, RM>>
-): ProjectionFn<E, RM> {
-  // Type-safe policy conversion without type assertion
-  return fromProjection(projection)
-}
-
-/**
- * Converts Projection object to ProjectionFn
- */
-function fromProjection<E extends DomainEvent, RM extends ReadModel>(
-  projections: Projection<E, RM, ProjectionMap<E, RM>>
-): ProjectionFn<E, RM> {
-  return (params: ProjectionParams<E, RM>): RM => {
-    const eventType = params.event.type
-
-    // Type-safe key checking without type assertion
-    if (!(eventType in projections)) {
-      return params.readModel
-    }
-
-    const projection = projections[eventType as keyof typeof projections]
-    if (!projection || typeof projection !== 'object') {
-      return params.readModel
-    }
-
-    // Get the readModel type from params
-    const readModelType = params.readModel.type
-    const projectionFn = projection[readModelType as keyof typeof projection]
-
-    if (!projectionFn || typeof projectionFn !== 'function') {
-      return params.readModel
-    }
-
-    // Type-safe parameter casting
-    const result = projectionFn(
-      params as ProjectionParams<
-        Extract<E, { type: typeof eventType }>,
-        Draft<Extract<RM, { type: keyof typeof projection }>>
-      >
-    )
-
-    return result ?? params.readModel
-  }
-}
-
 export class EventReactorBuilder<
   ST extends BuilderState,
   E extends DomainEvent,
@@ -238,10 +186,13 @@ export class EventReactorBuilder<
       throw new Error('EventReactor is not ready to build. Missing required properties.')
     }
 
+    const projectionMap = this.value.projectionMap ?? ({} as ProjectionMap<E, RM>)
+
     return {
       type: this.value.type,
       policy: createPolicyFn(this.value.policy),
-      projection: createProjectionFn(this.value.projection)
+      projection: this.value.projection,
+      projectionMap
     }
   }
 }

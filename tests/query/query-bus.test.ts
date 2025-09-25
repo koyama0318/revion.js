@@ -10,7 +10,7 @@ import type {
 } from '../fixtures/counter-app/features/counter2/types'
 import type { CounterReadModel } from '../fixtures/counter-app/shared/readmodel'
 
-describe('[query] query bus', () => {
+describe('query-bus', () => {
   describe('createQueryBus', () => {
     test('should return a function when created with minimal configuration', () => {
       // Arrange
@@ -22,48 +22,6 @@ describe('[query] query bus', () => {
       // Assert
       expect(queryBus).toBeDefined()
       expect(typeof queryBus).toBe('function')
-    })
-
-    test('should return error when query type is invalid', async () => {
-      // Arrange
-      const deps = { readModelStore: new ReadModelStoreInMemory() }
-      const queryBus = createQueryBus({ deps })
-
-      const invalidQuery: Query = {
-        type: '',
-        sourceType: 'any-query'
-      }
-
-      // Act
-      const res = await queryBus(invalidQuery)
-
-      // Assert
-      expect(res.ok).toBe(false)
-      if (!res.ok) {
-        expect(res.error.code).toBe('INVALID_QUERY_TYPE')
-        expect(res.error.message).toBe('query type is not valid')
-      }
-    })
-
-    test('should return error when no resolver is found for query type', async () => {
-      // Arrange
-      const deps = { readModelStore: new ReadModelStoreInMemory() }
-      const queryBus = createQueryBus({ deps })
-
-      const query: Query = {
-        type: 'any-query',
-        sourceType: 'unknown-query'
-      }
-
-      // Act
-      const res = await queryBus(query)
-
-      // Assert
-      expect(res.ok).toBe(false)
-      if (!res.ok) {
-        expect(res.error.code).toBe('QUERY_RESOLVER_NOT_FOUND')
-        expect(res.error.message).toBe('Handler for type unknown-query not found')
-      }
     })
 
     test('should execute query successfully when resolver is found', async () => {
@@ -102,7 +60,6 @@ describe('[query] query bus', () => {
 
     test('should handle list query with multiple items', async () => {
       // Arrange
-
       const testStore = new ReadModelStoreInMemory()
       await testStore.save({
         type: 'counter',
@@ -264,12 +221,53 @@ describe('[query] query bus', () => {
       }
     })
 
+    test('should return error when query type is invalid', async () => {
+      // Arrange
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const queryBus = createQueryBus({ deps })
+
+      const invalidQuery: Query = {
+        type: '',
+        sourceType: 'any-query'
+      }
+
+      // Act
+      const res = await queryBus(invalidQuery)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('INVALID_QUERY_TYPE')
+        expect(res.error.message).toBe('query type is not valid')
+      }
+    })
+
+    test('should return error when no resolver is found for query type', async () => {
+      // Arrange
+      const deps = { readModelStore: new ReadModelStoreInMemory() }
+      const queryBus = createQueryBus({ deps })
+
+      const query: Query = {
+        type: 'any-query',
+        sourceType: 'unknown-query'
+      }
+
+      // Act
+      const res = await queryBus(query)
+
+      // Assert
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error.code).toBe('QUERY_RESOLVER_NOT_FOUND')
+        expect(res.error.message).toBe('Handler for type unknown-query not found')
+      }
+    })
+
     test('should handle empty query resolvers', async () => {
       // Arrange
       const deps = { readModelStore: new ReadModelStoreInMemory() }
       const queryBus = createQueryBus({
         deps
-        // No queryResolvers provided
       })
 
       const query: Query = {

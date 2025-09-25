@@ -1,36 +1,24 @@
 import { describe, expect, test } from 'bun:test'
+import { CommandDispatcherMock } from '../../../src/adapter/command-dispatcher-mock'
 import { zeroId } from '../../../src/command/helpers/aggregate-id'
 import { createDispatchEventFnFactory } from '../../../src/event/fn/dispatch-event'
-import type { CommandDispatcher } from '../../../src/types/adapter'
-import type { AggregateId, ExtendedDomainEvent } from '../../../src/types/core'
+import type { ExtendedDomainEvent } from '../../../src/types/core'
+import type {
+  CounterCommand,
+  CounterEvent
+} from '../../fixtures/counter-app/features/counter/types'
 
-type TestEvent = { type: 'created'; id: AggregateId<'test'>; payload: { name: string } }
-
-// Mock command dispatcher that fails
-class MockCommandDispatcherError implements CommandDispatcher {
-  async dispatch() {
-    throw new Error('Mock dispatch failed')
-  }
-}
-
-// Mock command dispatcher that succeeds
-class MockCommandDispatcherSuccess implements CommandDispatcher {
-  async dispatch() {
-    throw new Error('Mock dispatch failed')
-  }
-}
-
-describe('[event] dispatch event function', () => {
+describe('[event] dispatch-event', () => {
   describe('createDispatchEventFnFactory', () => {
     test('returns ok when policy returns no command', async () => {
       // Arrange
       const policy = () => null
-      const dispatcher = new MockCommandDispatcherSuccess()
+      const dispatcher = new CommandDispatcherMock()
       const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
-      const event: ExtendedDomainEvent<TestEvent> = {
+      const event: ExtendedDomainEvent<CounterEvent> = {
         type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
+        id: zeroId('counter'),
+        payload: { count: 0 },
         version: 1,
         timestamp: new Date()
       }
@@ -42,19 +30,69 @@ describe('[event] dispatch event function', () => {
       expect(result.ok).toBe(true)
     })
 
+    test('returns ok when command dispatch succeeds', async () => {
+      // Arrange
+      const policy = (): CounterCommand => ({
+        type: 'increment',
+        id: zeroId('counter')
+      })
+      const dispatcher = new CommandDispatcherMock()
+      const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
+      const event: ExtendedDomainEvent<CounterEvent> = {
+        type: 'created',
+        id: zeroId('counter'),
+        payload: { count: 0 },
+        version: 1,
+        timestamp: new Date()
+      }
+
+      // Act
+      const result = await dispatchFn(event)
+
+      // Assert
+      expect(result.ok).toBe(true)
+    })
+
+    test('handles policy function throwing error', async () => {
+      // Arrange
+      const policy = () => {
+        throw new Error('Policy execution failed')
+      }
+      const dispatcher = new CommandDispatcherMock()
+      const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
+      const event: ExtendedDomainEvent<CounterEvent> = {
+        type: 'created',
+        id: zeroId('counter'),
+        payload: { count: 0 },
+        version: 1,
+        timestamp: new Date()
+      }
+
+      // Act
+      const result = await dispatchFn(event)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('POLICY_EXECUTION_FAILED')
+      }
+    })
+
     test('handles command dispatch failure', async () => {
       // Arrange
-      const policy = () => ({
-        type: 'notify' as const,
-        id: zeroId('test'),
-        payload: { message: 'test' }
+      const policy = (): CounterCommand => ({
+        type: 'increment',
+        id: zeroId('counter')
       })
-      const dispatcher = new MockCommandDispatcherError()
+      const dispatcher = new CommandDispatcherMock()
+      dispatcher.dispatch = async () => {
+        throw new Error('Mock dispatch failed')
+      }
       const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
-      const event: ExtendedDomainEvent<TestEvent> = {
+      const event: ExtendedDomainEvent<CounterEvent> = {
         type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
+        id: zeroId('counter'),
+        payload: { count: 0 },
         version: 1,
         timestamp: new Date()
       }
@@ -66,29 +104,18 @@ describe('[event] dispatch event function', () => {
       expect(result.ok).toBe(false)
       if (!result.ok) {
         expect(result.error.code).toBe('COMMAND_DISPATCH_FAILED')
-        expect(result.error.message).toBe('Command dispatch failed')
+        expect(result.error.message).toBe('Command dispatch failed: increment for event created')
       }
     })
 
-    test('returns ok when command dispatch succeeds', async () => {
+    test('returns error when policy is null', async () => {
       // Arrange
-      class MockCommandDispatcherOk implements CommandDispatcher {
-        async dispatch() {
-          return Promise.resolve()
-        }
-      }
-
-      const policy = () => ({
-        type: 'notify' as const,
-        id: zeroId('test'),
-        payload: { message: 'test' }
-      })
-      const dispatcher = new MockCommandDispatcherOk()
-      const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
-      const event: ExtendedDomainEvent<TestEvent> = {
+      const dispatcher = new CommandDispatcherMock()
+      const dispatchFn = createDispatchEventFnFactory(null as any)(dispatcher)
+      const event: ExtendedDomainEvent<CounterEvent> = {
         type: 'created',
-        id: zeroId('test'),
-        payload: { name: 'test' },
+        id: zeroId('counter'),
+        payload: { count: 0 },
         version: 1,
         timestamp: new Date()
       }
@@ -97,7 +124,54 @@ describe('[event] dispatch event function', () => {
       const result = await dispatchFn(event)
 
       // Assert
-      expect(result.ok).toBe(true)
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('INVALID_POLICY')
+      }
+    })
+
+    test('returns error when dispatcher is invalid', async () => {
+      // Arrange
+      const policy = () => null
+      const dispatchFn = createDispatchEventFnFactory(policy)(null as any)
+      const event: ExtendedDomainEvent<CounterEvent> = {
+        type: 'created',
+        id: zeroId('counter'),
+        payload: { count: 0 },
+        version: 1,
+        timestamp: new Date()
+      }
+
+      // Act
+      const result = await dispatchFn(event)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('INVALID_DISPATCHER')
+      }
+    })
+
+    test('returns error when event has no timestamp', async () => {
+      // Arrange
+      const policy = () => null
+      const dispatcher = new CommandDispatcherMock()
+      const dispatchFn = createDispatchEventFnFactory(policy)(dispatcher)
+      const event = {
+        type: 'created',
+        id: zeroId('counter'),
+        payload: { count: 0 },
+        version: 1
+      } as any
+
+      // Act
+      const result = await dispatchFn(event)
+
+      // Assert
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('INVALID_EVENT')
+      }
     })
   })
 })
