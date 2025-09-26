@@ -5,8 +5,8 @@ import { zeroId } from '../../src/command/helpers/aggregate-id'
 import { createEventBus } from '../../src/event/event-bus'
 import type { ExtendedDomainEvent } from '../../src/types/core'
 import type { EventReactor } from '../../src/types/event'
-import { counterReactor } from '../fixtures/counter-app/features/counter/counter-reactor'
-import type { CounterEvent } from '../fixtures/counter-app/features/counter/types'
+import type { CounterEvent } from '../fixtures/counter-app/features/counter'
+import { counterReactor } from '../fixtures/counter-app/features/counter'
 
 describe('[event] event-bus', () => {
   describe('createEventBus', () => {

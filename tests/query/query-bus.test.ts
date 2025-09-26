@@ -3,7 +3,7 @@ import { ReadModelStoreInMemory } from '../../src/adapter/read-model-store-in-me
 import { createQueryBus } from '../../src/query/query-bus'
 import type { Query } from '../../src/types/core'
 import type { QueryHandlerMiddleware } from '../../src/types/framework'
-import { counterQuerySource } from '../fixtures/counter-app/features/counter/counter-query'
+import { counterQuerySource } from '../fixtures/counter-app/features/counter'
 import type {
   CounterQuery,
   CounterQueryResult

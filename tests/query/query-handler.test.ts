@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { ReadModelStoreInMemory } from '../../src/adapter/read-model-store-in-memory'
 import { createQueryHandlers } from '../../src/query/query-handler'
-import { counterQuerySource } from '../fixtures/counter-app/features/counter/counter-query'
+import { counterQuerySource } from '../fixtures/counter-app/features/counter'
 import type { CounterQuery } from '../fixtures/counter-app/features/counter2/types'
 import type { CounterReadModel } from '../fixtures/counter-app/shared/readmodel'
 
