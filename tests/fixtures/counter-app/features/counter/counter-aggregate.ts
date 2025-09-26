@@ -11,16 +11,10 @@ const decider: EventDecider<CounterState, CounterCommand, CounterEvent> = {
     }
   },
   increment: ({ command }) => {
-    return {
-      type: 'incremented',
-      id: command.id
-    }
+    return { type: 'incremented', id: command.id }
   },
   decrement: ({ command }) => {
-    return {
-      type: 'decremented',
-      id: command.id
-    }
+    return { type: 'decremented', id: command.id }
   }
 }
 
