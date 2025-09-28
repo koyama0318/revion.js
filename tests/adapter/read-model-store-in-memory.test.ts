@@ -301,11 +301,11 @@ describe('[adapter] read model store in memory', () => {
           await store.save(product)
         }
 
-        expect(Object.keys(store.storage)).toHaveLength(2)
+        expect(Object.keys(store.records)).toHaveLength(2)
 
         store.clear()
 
-        expect(store.storage).toEqual({})
+        expect(store.records).toEqual({})
       })
     })
   })

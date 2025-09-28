@@ -33,7 +33,7 @@ const defaultConfig = {
 
 export class FakeHandler {
   readonly eventStore: EventStoreInMemory
-  readonly readDatabase: ReadModelStoreInMemory
+  readonly readModelStore: ReadModelStoreInMemory
   readonly commandDispatcher: CommandDispatcherMock
   readonly config: typeof defaultConfig
 
@@ -48,7 +48,7 @@ export class FakeHandler {
     querySources = [],
     queryMiddleware = [],
     eventStore = new EventStoreInMemory(),
-    readDatabase = new ReadModelStoreInMemory(),
+    readModelStore = new ReadModelStoreInMemory(),
     commandDispatcher = new CommandDispatcherMock(),
     config = {}
   }: {
@@ -58,12 +58,12 @@ export class FakeHandler {
     querySources?: AnyQuerySource[]
     queryMiddleware?: QueryHandlerMiddleware[]
     eventStore?: EventStoreInMemory
-    readDatabase?: ReadModelStoreInMemory
+    readModelStore?: ReadModelStoreInMemory
     commandDispatcher?: CommandDispatcherMock
     config?: Partial<typeof defaultConfig>
   }) {
     this.eventStore = eventStore
-    this.readDatabase = readDatabase
+    this.readModelStore = readModelStore
     this.commandDispatcher = commandDispatcher
 
     this.commandBus = createCommandBus({
@@ -73,12 +73,12 @@ export class FakeHandler {
     })
 
     this.eventBus = createEventBus({
-      deps: { commandDispatcher: this.commandDispatcher, readModelStore: this.readDatabase },
+      deps: { commandDispatcher: this.commandDispatcher, readModelStore: this.readModelStore },
       reactors: reactors ?? []
     })
 
     this.queryBus = createQueryBus({
-      deps: { readModelStore: this.readDatabase },
+      deps: { readModelStore: this.readModelStore },
       querySources: querySources ?? [],
       middleware: queryMiddleware ?? []
     })
@@ -144,13 +144,22 @@ export class FakeHandler {
   }
 
   setReadDatabase(storage: Record<string, Record<string, ReadModel>>) {
-    this.readDatabase.storage = storage
+    this.readModelStore.records = storage
   }
 
   reset() {
     this.eventStore.events = []
     this.eventStore.snapshots = []
-    this.readDatabase.storage = {}
+    this.readModelStore.records = {}
     this.commandDispatcher.reset()
+  }
+
+  log() {
+    console.log('-- eventStore.events --')
+    console.log(this.eventStore.events)
+    console.log()
+    console.log('-- readModelStore.records --')
+    console.log(this.readModelStore.records)
+    console.log()
   }
 }
