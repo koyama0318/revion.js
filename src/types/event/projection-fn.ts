@@ -5,7 +5,7 @@ export type ProjectionCtx = {
   readonly timestamp: Date
 }
 
-export type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
+type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
   readModel: RM['type']
   where?: (e: E) => FilterCondition<RM>
 }
