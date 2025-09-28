@@ -16,7 +16,13 @@ import type {
   ReadModel
 } from '../types/core'
 import type { AnyEventReactor } from '../types/event'
-import type { CommandBus, CommandHandlerMiddleware, EventBus, QueryBus } from '../types/framework'
+import type {
+  CommandBus,
+  CommandHandlerMiddleware,
+  EventBus,
+  QueryBus,
+  QueryHandlerMiddleware
+} from '../types/framework'
 import type { AnyQuerySource } from '../types/query/query-source'
 import { ok } from '../utils/result'
 
@@ -37,18 +43,20 @@ export class FakeHandler {
 
   constructor({
     aggregates = [],
-    middleware = [],
+    commandMiddleware = [],
     reactors = [],
     querySources = [],
+    queryMiddleware = [],
     eventStore = new EventStoreInMemory(),
     readDatabase = new ReadModelStoreInMemory(),
     commandDispatcher = new CommandDispatcherMock(),
     config = {}
   }: {
     aggregates?: AnyAggregate[]
-    middleware?: CommandHandlerMiddleware[]
+    commandMiddleware?: CommandHandlerMiddleware[]
     reactors?: AnyEventReactor[]
     querySources?: AnyQuerySource[]
+    queryMiddleware?: QueryHandlerMiddleware[]
     eventStore?: EventStoreInMemory
     readDatabase?: ReadModelStoreInMemory
     commandDispatcher?: CommandDispatcherMock
@@ -61,7 +69,7 @@ export class FakeHandler {
     this.commandBus = createCommandBus({
       deps: { eventStore: this.eventStore },
       aggregates: aggregates ?? [],
-      middleware: middleware ?? []
+      middleware: commandMiddleware ?? []
     })
 
     this.eventBus = createEventBus({
@@ -72,7 +80,7 @@ export class FakeHandler {
     this.queryBus = createQueryBus({
       deps: { readModelStore: this.readDatabase },
       querySources: querySources ?? [],
-      middleware: []
+      middleware: queryMiddleware ?? []
     })
 
     this.config = { ...defaultConfig, ...config }
@@ -93,8 +101,8 @@ export class FakeHandler {
     const afterEvents = this.eventStore.events.slice()
 
     const diff = afterEvents
-      .filter((e: any) => !beforeEvents.includes(e))
-      .sort((a: any, b: any) => a.timestamp.getTime() - b.timestamp.getTime())
+      .filter(e => !beforeEvents.includes(e))
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
 
     for (const event of diff) {
       const handled = await this.eventBus(event)
@@ -119,6 +127,12 @@ export class FakeHandler {
     }
 
     return ok(dispatched.value)
+  }
+
+  async commandMany(cmds: Command[]) {
+    for (const cmd of cmds) {
+      await this.command(cmd)
+    }
   }
 
   async query<Q extends Query>(query: Q): QueryResult {
