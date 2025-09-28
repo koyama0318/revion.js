@@ -17,47 +17,37 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
       const validated = validateEvent(event)
       if (!validated.ok) return validated
 
-      const dict: Record<string, ReadModel> = {}
-
       const modelFetchList = map[event.type as keyof typeof map]
       if (!modelFetchList || !Array.isArray(modelFetchList)) {
-        return ok(dict)
+        return ok({})
       }
 
-      // Track if we have valid configurations and if we found any models
+      const dict: Record<string, ReadModel> = {}
       let hasValidConfigurations = false
       let foundAnyModels = false
 
       for (const fetch of modelFetchList) {
-        if (!fetch || typeof fetch !== 'object' || !fetch.readModel) {
-          continue // Skip invalid fetch configurations
-        }
+        if (!fetch || typeof fetch !== 'object' || !fetch.readModel) continue
 
         hasValidConfigurations = true
-        const modelType: string = fetch.readModel
+        const modelType = fetch.readModel
 
         try {
           if (fetch.where) {
             const whereResult = fetch.where(event as Extract<E, { type: E['type'] }>)
+            // biome-ignore lint/suspicious/noExplicitAny: "filter is used to store the result of the where clause"
             let filter: any
 
-            // Check if whereResult is a FilterCondition or Partial<ReadModel>
             if (whereResult && typeof whereResult === 'object') {
               if ('by' in whereResult && 'operator' in whereResult && 'value' in whereResult) {
-                // Single FilterCondition
                 filter = [whereResult]
               } else {
-                // Partial<ReadModel> - convert to FilterCondition array
                 filter = (
                   Object.entries(whereResult) as [
                     keyof ReadModel & string,
                     ReadModel[keyof ReadModel]
                   ][]
-                ).map(([by, value]) => ({
-                  by,
-                  operator: 'eq' as const,
-                  value
-                }))
+                ).map(([by, value]) => ({ by, operator: 'eq' as const, value }))
               }
             }
 
@@ -74,17 +64,13 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
               if (model?.id) {
                 const key = modelType + model.id
                 if (!dict[key]) {
-                  // Prevent overwriting
                   dict[key] = model
                   foundAnyModels = true
                 }
               }
             }
           } else {
-            // id 指定で findById（存在しなければスキップ）
-            if (!event.id || !event.id.value) {
-              continue // Skip if event doesn't have a valid id
-            }
+            if (!event.id?.value) continue
 
             const modelResult = await toAsyncResult(() => store.findById(modelType, event.id.value))
             if (!modelResult.ok) {
@@ -99,7 +85,6 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
             if (model?.id) {
               const key = modelType + model.id
               if (!dict[key]) {
-                // Prevent overwriting
                 dict[key] = model
                 foundAnyModels = true
               }
@@ -114,8 +99,25 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
         }
       }
 
-      // If we have valid configurations but found no models, return an error
       if (hasValidConfigurations && !foundAnyModels) {
+        const placeholderDict: Record<string, ReadModel> = {}
+
+        for (const fetch of modelFetchList) {
+          if (!fetch?.readModel || fetch.where) continue
+
+          const placeholderModel = {
+            type: fetch.readModel,
+            id: event.id?.value || 'unknown'
+          }
+
+          const key = fetch.readModel + placeholderModel.id
+          placeholderDict[key] = placeholderModel
+        }
+
+        if (Object.keys(placeholderDict).length > 0) {
+          return ok(placeholderDict)
+        }
+
         return err({
           code: 'READ_MODEL_NOT_FOUND',
           message: 'No read models found despite having valid projection configurations'

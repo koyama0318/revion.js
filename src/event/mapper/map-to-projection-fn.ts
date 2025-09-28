@@ -31,6 +31,7 @@ export function mapProjectionToFn<
         readModel: draft
       }
 
+      // biome-ignore lint/suspicious/noExplicitAny: "result is used to store the result of the projection function"
       const result = projectionFn(projectionParams as any)
       if (result === undefined) {
         // Projection mutated the draft in-place → immer will return the new read model automatically.

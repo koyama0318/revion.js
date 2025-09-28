@@ -84,14 +84,14 @@ class ReactorTestFixture<E extends DomainEvent, C extends Command, RM extends Re
     }
 
     // 2. apply projection to each readModel
-    const projectionFn = mapProjectionToFn(this.reactor.projection as any)
+    const projectionFn = mapProjectionToFn(this.reactor.projection)
     const updatedDict: Record<string, ReadModel> = {}
 
     for (const [key, model] of Object.entries(modelDict)) {
       const updatedModel = projectionFn({
         ctx: { timestamp: event.timestamp },
         event: event as unknown as E,
-        readModel: model as any
+        readModel: model as RM
       })
       updatedDict[key] = updatedModel
     }
@@ -115,7 +115,7 @@ class ReactorTestFixture<E extends DomainEvent, C extends Command, RM extends Re
           const newModel = projectionFn({
             ctx: { timestamp: event.timestamp },
             event: event as unknown as E,
-            readModel: placeholderModel as any
+            readModel: placeholderModel as RM
           })
 
           if (newModel && newModel !== placeholderModel) {
