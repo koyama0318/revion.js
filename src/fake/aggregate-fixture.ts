@@ -1,6 +1,5 @@
 import { createReplayEventFnFactory } from '../command/fn/replay-event'
 import { zeroId } from '../command/helpers/aggregate-id'
-import type { ReadModelMap } from '../types/adapter'
 import type { Aggregate } from '../types/command'
 import type {
   AggregateId,
@@ -10,7 +9,6 @@ import type {
   ExtendedState,
   State
 } from '../types/core'
-import type { EventReactor } from '../types/event'
 import type { AppError, AsyncResult } from '../types/utils'
 import { ok } from '../utils/result'
 import { FakeHandler } from './fake-handler'
@@ -34,21 +32,16 @@ type AggregateTestContext<S extends State, E extends DomainEvent> = {
   error: AppError | null
 }
 
-class AggregateTestFixture<
-  S extends State,
-  C extends Command,
-  E extends DomainEvent,
-  VM extends ReadModelMap
-> {
+class AggregateTestFixture<S extends State, C extends Command, E extends DomainEvent> {
   private readonly aggregate: Aggregate<S, C, E>
   private readonly handler: FakeHandler
   private context: AggregateTestContext<S, E>
 
-  constructor(aggregate: Aggregate<S, C, E>, reactor?: EventReactor<C, E, VM[keyof VM]>) {
+  constructor(aggregate: Aggregate<S, C, E>) {
     this.aggregate = aggregate
     this.handler = new FakeHandler({
       aggregates: [aggregate],
-      reactors: reactor ? [reactor] : [],
+      reactors: [],
       config: {
         skipReadModelProjectionErrors: true
       }
@@ -176,11 +169,8 @@ class AggregateTestFixture<
   }
 }
 
-export function aggregateFixture<
-  S extends State,
-  C extends Command,
-  E extends DomainEvent,
-  VM extends ReadModelMap
->(aggregate: Aggregate<S, C, E>, reactor?: EventReactor<C, E, VM[keyof VM]>) {
-  return new AggregateTestFixture(aggregate, reactor)
+export function aggregateFixture<S extends State, C extends Command, E extends DomainEvent>(
+  aggregate: Aggregate<S, C, E>
+) {
+  return new AggregateTestFixture(aggregate)
 }
