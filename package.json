@@ -1,9 +1,8 @@
 {
-  "name": "revionjs-project",
+  "name": "revion",
   "description": "TypeScript framework for CQRS/Event Sourcing with complete type safety, comprehensive testing utilities.",
-  "version": "0.0.0",
+  "version": "0.0.52",
   "license": "MIT",
-  "module": "index.ts",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
