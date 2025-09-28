@@ -89,7 +89,7 @@ describe('[event] prefetch-read-model', () => {
       }
     })
 
-    test('returns error when model with invalid type not found', async () => {
+    test('creates placeholder when model with invalid type not found', async () => {
       // Arrange
       const store = new ReadModelStoreInMemory()
 
@@ -110,9 +110,14 @@ describe('[event] prefetch-read-model', () => {
       const result = await prefetchFn(event)
 
       // Assert
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error.code).toBe('READ_MODEL_NOT_FOUND')
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(Object.keys(result.value)).toHaveLength(1)
+        const placeholderKey = `invalid_type${event.id.value}`
+        expect(result.value[placeholderKey]).toEqual({
+          type: 'invalid_type',
+          id: event.id.value
+        })
       }
     })
 
@@ -152,7 +157,7 @@ describe('[event] prefetch-read-model', () => {
       }
     })
 
-    test('returns error when model not found by id', async () => {
+    test('creates placeholder when model not found by id', async () => {
       // Arrange
       const store = new ReadModelStoreInMemory()
 
@@ -173,9 +178,14 @@ describe('[event] prefetch-read-model', () => {
       const result = await prefetchFn(event)
 
       // Assert
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error.code).toBe('READ_MODEL_NOT_FOUND')
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(Object.keys(result.value)).toHaveLength(1)
+        const placeholderKey = `counter${event.id.value}`
+        expect(result.value[placeholderKey]).toEqual({
+          type: 'counter',
+          id: event.id.value
+        })
       }
     })
 

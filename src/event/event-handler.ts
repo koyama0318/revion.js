@@ -23,10 +23,10 @@ function createEventHandlerFactory<D extends EventHandlerDeps>(
     return async (event: ExtendedDomainEvent<DomainEvent>) => {
       // MARK: projection workflow
 
-      const modelDict = await prefetchReadModels(event)
-      if (!modelDict.ok) return modelDict
+      const models = await prefetchReadModels(event)
+      if (!models.ok) return models
 
-      const projected = await projection(event, modelDict.value)
+      const projected = await projection(event, models.value)
       if (!projected.ok) return projected
 
       const saved = await saveReadModel(projected.value)
