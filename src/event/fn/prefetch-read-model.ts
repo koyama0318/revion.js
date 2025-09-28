@@ -38,7 +38,7 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
 
         try {
           if (fetch.where) {
-            const whereResult = fetch.where(event)
+            const whereResult = fetch.where(event as Extract<E, { type: E['type'] }>)
             let filter: any
 
             // Check if whereResult is a FilterCondition or Partial<ReadModel>

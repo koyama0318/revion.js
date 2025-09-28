@@ -7,11 +7,15 @@ export type ProjectionCtx = {
 
 type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
   readModel: RM['type']
-  where?: (e: E) => FilterCondition<Extract<RM, { type: RM['type'] }>>
+  where?: (e: E) => FilterCondition<RM>
 }
 
 export type ProjectionMap<E extends DomainEvent, RM extends ReadModel> = {
-  [K in E['type']]: ProjectionMapValue<E, RM>[]
+  [K in E['type']]: Array<
+    {
+      [R in RM['type']]: ProjectionMapValue<Extract<E, { type: K }>, Extract<RM, { type: R }>>
+    }[RM['type']]
+  >
 }
 
 export type ProjectionParams<E extends DomainEvent, RM extends ReadModel> = {
