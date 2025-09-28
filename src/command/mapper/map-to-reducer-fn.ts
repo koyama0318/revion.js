@@ -11,9 +11,6 @@ export function mapToReducerFn<S extends State, E extends DomainEvent>(
       throw new Error(`No reducer found for event type: "${String(event.type)}"`)
     }
 
-    // If the reducer returns a completely new state object, store it here.
-    let replacementState: S | null = null
-
     const producedState = produce(state, draft => {
       const params = {
         ctx,
@@ -34,10 +31,11 @@ export function mapToReducerFn<S extends State, E extends DomainEvent>(
         )
       }
 
-      replacementState = result
+      // biome-ignore lint/suspicious/noExplicitAny: 'result is used to store the result of the reducer function'
+      return result as any
     })
 
     // If the reducer returned a new state object, use it; otherwise, use the produced draft result.
-    return replacementState ?? producedState
+    return producedState
   }
 }

@@ -21,10 +21,6 @@ export function mapProjectionToFn<
       return params.readModel
     }
 
-    // If the projection returns a completely new read model object, store it here.
-    let replacementReadModel: RM | null = null
-    let shouldReturnOriginal = false
-
     const producedReadModel = produce(params.readModel, draft => {
       const projectionParams = {
         ...params,
@@ -33,14 +29,8 @@ export function mapProjectionToFn<
 
       // biome-ignore lint/suspicious/noExplicitAny: "result is used to store the result of the projection function"
       const result = projectionFn(projectionParams as any)
-      if (result === undefined) {
+      if (result === undefined || result === null) {
         // Projection mutated the draft in-place → immer will return the new read model automatically.
-        return
-      }
-
-      if (result === null) {
-        // Signal to return original read model
-        shouldReturnOriginal = true
         return
       }
 
@@ -51,15 +41,11 @@ export function mapProjectionToFn<
         )
       }
 
-      replacementReadModel = result
+      // biome-ignore lint/suspicious/noExplicitAny: 'result is used to store the result of the reducer function'
+      return result as any
     })
 
-    // Special handling for null result - return original read model
-    if (shouldReturnOriginal) {
-      return params.readModel
-    }
-
     // If the projection returned a new read model object, use it; otherwise, use the produced draft result.
-    return replacementReadModel ?? producedReadModel
+    return producedReadModel
   }
 }
