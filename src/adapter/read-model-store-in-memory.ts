@@ -4,13 +4,13 @@ import type { ReadModel } from '../types/core'
 type ModelOfType<M extends ReadModel, T extends M['type']> = M extends { type: T } ? M : never
 
 export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements ReadModelStore<M> {
-  storage: Record<string, Record<string, M>> = {}
+  records: Record<string, Record<string, M>> = {}
 
   async findMany<T extends M['type']>(
     type: T,
     options: QueryOption<ModelOfType<M, T>>
   ): Promise<ModelOfType<M, T>[]> {
-    const dataMap = this.storage[type as string]
+    const dataMap = this.records[type as string]
     if (!dataMap) return []
 
     let items = Object.values(dataMap) as ModelOfType<M, T>[]
@@ -92,7 +92,7 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
   }
 
   async findById<T extends M['type']>(type: T, id: string): Promise<ModelOfType<M, T> | null> {
-    const typeStorage = this.storage[type as string]
+    const typeStorage = this.records[type as string]
     if (!typeStorage) return null
 
     const readModel = typeStorage[id]
@@ -102,19 +102,19 @@ export class ReadModelStoreInMemory<M extends ReadModel = ReadModel> implements 
   }
 
   async save(model: M): Promise<void> {
-    const typeStorage = this.storage[model.type] || {}
+    const typeStorage = this.records[model.type] || {}
     typeStorage[model.id] = model
-    this.storage[model.type] = typeStorage
+    this.records[model.type] = typeStorage
   }
 
   async delete(model: M): Promise<void> {
-    const typeStorage = this.storage[model.type]
+    const typeStorage = this.records[model.type]
     if (typeStorage) {
       delete typeStorage[model.id]
     }
   }
 
   clear(): void {
-    this.storage = {}
+    this.records = {}
   }
 }

@@ -17,13 +17,13 @@ type ReactorTestContext = {
 
 class ReactorTestFixture<E extends DomainEvent, C extends Command, RM extends ReadModel> {
   private readonly commandDispatcher: CommandDispatcherMock
-  private readonly readDatabase: ReadModelStoreInMemory
+  private readonly readModelStore: ReadModelStoreInMemory
   private readonly reactor: EventReactor<E, C, RM>
   private context: ReactorTestContext
 
   constructor(reactor: EventReactor<E, C, RM>) {
     this.commandDispatcher = new CommandDispatcherMock()
-    this.readDatabase = new ReadModelStoreInMemory()
+    this.readModelStore = new ReadModelStoreInMemory()
     this.reactor = reactor
     this.context = {
       readModel: { before: {}, after: {} },
@@ -46,7 +46,7 @@ class ReactorTestFixture<E extends DomainEvent, C extends Command, RM extends Re
   async when(event: ExtendedDomainEvent<E>) {
     // reset
     this.commandDispatcher.reset()
-    this.readDatabase.storage = { ...this.context.readModel.before }
+    this.readModelStore.records = { ...this.context.readModel.before }
 
     // execute receiving command (policy)
     const dispatchFn = createDispatchEventFnFactory(this.reactor.policy)(this.commandDispatcher)
@@ -72,8 +72,8 @@ class ReactorTestFixture<E extends DomainEvent, C extends Command, RM extends Re
         if (fetch.where) {
         } else {
           // Find by event ID
-          if (event.id?.value && this.readDatabase.storage[modelType]?.[event.id.value]) {
-            const model = this.readDatabase.storage[modelType][event.id.value]
+          if (event.id?.value && this.readModelStore.records[modelType]?.[event.id.value]) {
+            const model = this.readModelStore.records[modelType][event.id.value]
             if (model) {
               const key = modelType + model.id
               modelDict[key] = model
@@ -129,16 +129,16 @@ class ReactorTestFixture<E extends DomainEvent, C extends Command, RM extends Re
     }
 
     // 3. save updated readModels back to storage
-    this.readDatabase.storage = { ...this.context.readModel.before }
+    this.readModelStore.records = { ...this.context.readModel.before }
     for (const [, model] of Object.entries(updatedDict)) {
       const type = model.type
-      if (!this.readDatabase.storage[type]) this.readDatabase.storage[type] = {}
-      this.readDatabase.storage[type][model.id] = model
+      if (!this.readModelStore.records[type]) this.readModelStore.records[type] = {}
+      this.readModelStore.records[type][model.id] = model
     }
 
     // set after readModel
     this.context.issuedCommands = this.commandDispatcher.getCommands() as C[]
-    this.context.readModel.after = this.readDatabase.storage
+    this.context.readModel.after = this.readModelStore.records
 
     return this
   }
