@@ -1,6 +1,6 @@
 import type { ReadModelStore } from '../../types/adapter'
-import type { Query, QueryResultData } from '../../types/core'
-import type { ResolverContext, ResolverFn } from '../../types/query/resolver-fn'
+import type { Query, QueryResultData, ReadModel } from '../../types/core'
+import type { ResolverContext, ResolverFn, ResolverParams } from '../../types/query/resolver-fn'
 import type { AppError, AsyncResult } from '../../types/utils'
 import { err, ok, toAsyncResult } from '../../utils/result'
 
@@ -8,17 +8,23 @@ type ResolveReadModelFn<Q extends Query, QR extends QueryResultData> = (
   query: Q
 ) => AsyncResult<QR, AppError>
 
-export function createResolveReadModelFnFactory<Q extends Query, QR extends QueryResultData>(
-  resolver: ResolverFn<Q, QR>
-): (store: ReadModelStore) => ResolveReadModelFn<Q, QR> {
+export function createResolveReadModelFnFactory<
+  Q extends Query,
+  QR extends QueryResultData,
+  RM extends ReadModel
+>(resolver: ResolverFn<Q, QR, RM>): (store: ReadModelStore) => ResolveReadModelFn<Q, QR> {
   return (store: ReadModelStore) => {
     return async (query: Q) => {
       const resolverCtx: ResolverContext = {
         timestamp: new Date()
       }
 
-      const ctx = { ctx: resolverCtx, query, store }
-      const resolverRes = await toAsyncResult(() => resolver(ctx))
+      const params: ResolverParams<Q, RM> = {
+        ctx: resolverCtx,
+        query,
+        store: store as unknown as ReadModelStore<RM>
+      }
+      const resolverRes = await toAsyncResult(() => resolver(params))
       if (!resolverRes.ok) {
         return err({
           code: 'RESOLVER_EXECUTION_FAILED',
