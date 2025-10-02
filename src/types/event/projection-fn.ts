@@ -7,7 +7,7 @@ export type ProjectionCtx = {
 
 export type ProjectionMode = 'create' | 'update' | 'upsert'
 
-type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
+export type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
   readModel: RM['type']
   where?: (e: E) => FilterCondition<RM>
   mode?: ProjectionMode
