@@ -5,9 +5,12 @@ export type ProjectionCtx = {
   readonly timestamp: Date
 }
 
+export type ProjectionMode = 'create' | 'update' | 'upsert'
+
 type ProjectionMapValue<E extends DomainEvent, RM extends ReadModel> = {
   readModel: RM['type']
   where?: (e: E) => FilterCondition<RM>
+  mode?: ProjectionMode
 }
 
 export type ProjectionMap<E extends DomainEvent, RM extends ReadModel> = {

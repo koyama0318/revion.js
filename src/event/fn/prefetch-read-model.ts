@@ -1,3 +1,4 @@
+import { v4 } from 'uuid'
 import type { ReadModelStore } from '../../types/adapter'
 import type { DomainEvent, ReadModel } from '../../types/core'
 import type { ProjectionMap } from '../../types/event'
@@ -23,13 +24,10 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
       }
 
       const dict: Record<string, ReadModel> = {}
-      let hasValidConfigurations = false
-      let foundAnyModels = false
 
       for (const fetch of modelFetchList) {
         if (!fetch || typeof fetch !== 'object' || !fetch.readModel) continue
 
-        hasValidConfigurations = true
         const modelType = fetch.readModel
 
         try {
@@ -65,8 +63,18 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
                 const key = modelType + model.id
                 if (!dict[key]) {
                   dict[key] = model
-                  foundAnyModels = true
                 }
+              }
+            }
+
+            if (!modelsResult.value || modelsResult.value.length === 0) {
+              const placeholderModel = {
+                type: modelType,
+                id: v4()
+              }
+              const key = modelType + placeholderModel.id
+              if (!dict[key]) {
+                dict[key] = placeholderModel
               }
             }
           } else {
@@ -86,7 +94,15 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
               const key = modelType + model.id
               if (!dict[key]) {
                 dict[key] = model
-                foundAnyModels = true
+              }
+            } else {
+              const placeholderModel = {
+                type: modelType,
+                id: event.id?.value || 'unknown'
+              }
+              const key = modelType + placeholderModel.id
+              if (!dict[key]) {
+                dict[key] = placeholderModel
               }
             }
           }
@@ -97,31 +113,6 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
             cause: error
           })
         }
-      }
-
-      if (hasValidConfigurations && !foundAnyModels) {
-        const placeholderDict: Record<string, ReadModel> = {}
-
-        for (const fetch of modelFetchList) {
-          if (!fetch?.readModel || fetch.where) continue
-
-          const placeholderModel = {
-            type: fetch.readModel,
-            id: event.id?.value || 'unknown'
-          }
-
-          const key = fetch.readModel + placeholderModel.id
-          placeholderDict[key] = placeholderModel
-        }
-
-        if (Object.keys(placeholderDict).length > 0) {
-          return ok(placeholderDict)
-        }
-
-        return err({
-          code: 'READ_MODEL_NOT_FOUND',
-          message: 'No read models found despite having valid projection configurations'
-        })
       }
 
       return ok(dict)

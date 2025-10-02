@@ -6,6 +6,7 @@ export { aggregateFixture } from './fake/aggregate-fixture'
 export { reactorFixture } from './fake/event-reactor-fixture'
 export { FakeHandler } from './fake/fake-handler'
 export { createQuerySource } from './query/query-source-builder'
+export type { QueryOption } from './types/adapter/read-model-store'
 export type { Aggregate } from './types/command/aggregate'
 export type { EventDecider } from './types/command/event-decider'
 export type {
