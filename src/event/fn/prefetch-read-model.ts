@@ -1,7 +1,7 @@
 import { v4 } from 'uuid'
 import type { FilterCondition, ReadModelStore } from '../../types/adapter'
 import type { DomainEvent, ReadModel } from '../../types/core'
-import type { ProjectionMap, ProjectionMapValue } from '../../types/event'
+import type { ProjectionMap } from '../../types/event'
 import type { AppError, AsyncResult } from '../../types/utils'
 import { err, ok, toAsyncResult } from '../../utils/result'
 import { validateEvent } from '../helpers/validate-domain-event'
@@ -20,11 +20,8 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
 
       const dict: Record<string, ReadModel> = {}
 
-      const modelFetchList = map[event.type as keyof typeof map]
-      for (const fetch of modelFetchList as ProjectionMapValue<
-        Extract<E, { type: E['type'] }>,
-        Extract<RM, { type: RM['type'] }>
-      >[]) {
+      const modelFetchList = map[event.type as keyof typeof map] ?? []
+      for (const fetch of modelFetchList) {
         if (!fetch?.readModel) continue
         const modelType = fetch.readModel
 
