@@ -1,5 +1,5 @@
 import { v4 } from 'uuid'
-import type { ReadModelStore } from '../../types/adapter'
+import type { FilterCondition, ReadModelStore } from '../../types/adapter'
 import type { DomainEvent, ReadModel } from '../../types/core'
 import type { ProjectionMap } from '../../types/event'
 import type { AppError, AsyncResult } from '../../types/utils'
@@ -18,104 +18,72 @@ export function createPrefetchReadModel<E extends DomainEvent, RM extends ReadMo
       const validated = validateEvent(event)
       if (!validated.ok) return validated
 
-      const modelFetchList = map[event.type as keyof typeof map]
-      if (!modelFetchList || !Array.isArray(modelFetchList)) {
-        return ok({})
-      }
-
       const dict: Record<string, ReadModel> = {}
 
+      const modelFetchList = map[event.type as keyof typeof map] ?? []
       for (const fetch of modelFetchList) {
-        if (!fetch || typeof fetch !== 'object' || !fetch.readModel) continue
-
+        if (!fetch?.readModel) continue
         const modelType = fetch.readModel
 
-        try {
-          if (fetch.where) {
-            const whereResult = fetch.where(event as Extract<E, { type: E['type'] }>)
-            // biome-ignore lint/suspicious/noExplicitAny: "filter is used to store the result of the where clause"
-            let filter: any
-
-            if (whereResult && typeof whereResult === 'object') {
-              if ('by' in whereResult && 'operator' in whereResult && 'value' in whereResult) {
-                filter = [whereResult]
-              } else {
-                filter = (
-                  Object.entries(whereResult) as [
-                    keyof ReadModel & string,
-                    ReadModel[keyof ReadModel]
-                  ][]
-                ).map(([by, value]) => ({ by, operator: 'eq' as const, value }))
-              }
-            }
-
-            const modelsResult = await toAsyncResult(() => store.findMany(modelType, { filter }))
-            if (!modelsResult.ok) {
-              return err({
-                code: 'READ_MODEL_FETCH_FAILED',
-                message: `Failed to fetch read models of type '${modelType}'`,
-                cause: modelsResult.error
-              })
-            }
-
-            for (const model of modelsResult.value) {
-              if (model?.id) {
-                const key = modelType + model.id
-                if (!dict[key]) {
-                  dict[key] = model
-                }
-              }
-            }
-
-            if (!modelsResult.value || modelsResult.value.length === 0) {
-              const placeholderModel = {
-                type: modelType,
-                id: v4()
-              }
-              const key = modelType + placeholderModel.id
-              if (!dict[key]) {
-                dict[key] = placeholderModel
-              }
-            }
-          } else {
-            if (!event.id?.value) continue
-
-            const modelResult = await toAsyncResult(() => store.findById(modelType, event.id.value))
-            if (!modelResult.ok) {
-              return err({
-                code: 'READ_MODEL_FETCH_FAILED',
-                message: `Failed to fetch read model of type '${modelType}' with id '${event.id.value}'`,
-                cause: modelResult.error
-              })
-            }
-
-            const model = modelResult.value
-            if (model?.id) {
-              const key = modelType + model.id
-              if (!dict[key]) {
-                dict[key] = model
-              }
-            } else {
-              const placeholderModel = {
-                type: modelType,
-                id: event.id?.value || 'unknown'
-              }
-              const key = modelType + placeholderModel.id
-              if (!dict[key]) {
-                dict[key] = placeholderModel
-              }
-            }
+        if (fetch.where) {
+          const filter = normalizeFilter(fetch.where(event as Extract<E, { type: E['type'] }>))
+          const res = await toAsyncResult(() => store.findMany(modelType, { filter }))
+          if (!res.ok) {
+            return err({
+              code: 'READ_MODEL_FETCH_FAILED',
+              message: `Failed to fetch read modelsss of type '${modelType}'`,
+              cause: res.error
+            })
           }
-        } catch (error) {
-          return err({
-            code: 'READ_MODEL_FETCH_FAILED',
-            message: `Unexpected error while fetching read model of type '${modelType}'`,
-            cause: error
-          })
+          if (!res.ok) return res
+
+          const models = res.value
+          if (models.length > 0) {
+            for (const m of models) if (m?.id) dict[modelType + m.id] ??= m
+          } else {
+            dict[modelType + v4()] ??= placeholder(modelType)
+          }
+        } else if (event.id?.value) {
+          const res = await toAsyncResult(() => store.findById(modelType, event.id.value))
+          if (!res.ok) {
+            return err({
+              code: 'READ_MODEL_FETCH_FAILED',
+              message: `Failed to fetch read model of type '${modelType}' with id '${event.id.value}'`,
+              cause: res.error
+            })
+          }
+
+          const model = res.value
+          dict[modelType + (model?.id ?? event.id.value)] ??=
+            model ?? placeholder(modelType, event.id.value)
         }
       }
 
       return ok(dict)
     }
   }
+}
+
+/**
+ * Normalizes where clause results into FilterCondition[] format
+ * Handles both direct FilterCondition objects and plain object mappings
+ */
+function normalizeFilter(whereResult: unknown): FilterCondition<ReadModel>[] | undefined {
+  if (!whereResult || typeof whereResult !== 'object') return undefined
+  if ('by' in whereResult && 'operator' in whereResult && 'value' in whereResult) {
+    return [whereResult as FilterCondition<ReadModel>]
+  }
+  return Object.entries(whereResult as Record<string, unknown>).map(([by, value]) => ({
+    by,
+    operator: 'eq' as const,
+    value
+  })) as FilterCondition<ReadModel>[]
+}
+
+/**
+ * Creates a placeholder read model when no actual model is found
+ * Uses provided ID or generates a new UUID
+ */
+function placeholder(modelType: string, id?: string): ReadModel {
+  return { type: modelType, id: id ?? v4() } as ReadModel
 }
