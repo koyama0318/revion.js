@@ -1,9 +1,8 @@
 import { CommandDispatcherMock } from '../adapter/command-dispatcher-mock'
 import { ReadModelStoreInMemory } from '../adapter/read-model-store-in-memory'
-import { createDispatchEventFnFactory } from '../event/fn/dispatch-event'
-import { mapProjectionToFn } from '../event/mapper/map-to-projection-fn'
+import { createEventHandlers } from '../event/event-handler'
 import type { Command, DomainEvent, ExtendedDomainEvent, ReadModel } from '../types/core'
-import type { EventReactor } from '../types/event'
+import type { AnyEventReactor, EventReactor } from '../types/event'
 import type { AppError } from '../types/utils'
 
 type ReactorTestContext = {
@@ -46,99 +45,31 @@ class ReactorTestFixture<E extends DomainEvent, C extends Command, RM extends Re
   async when(event: ExtendedDomainEvent<E>) {
     // reset
     this.commandDispatcher.reset()
-    this.readModelStore.records = { ...this.context.readModel.before }
+    this.readModelStore.records = structuredClone(this.context.readModel.before)
 
-    // execute receiving command (policy)
-    const dispatchFn = createDispatchEventFnFactory(this.reactor.policy)(this.commandDispatcher)
-    const dispatch = await dispatchFn(event)
-    if (!dispatch.ok) {
-      this.context.error = dispatch.error
+    // use central event handler to process the event end-to-end
+    const handlers = createEventHandlers(
+      { commandDispatcher: this.commandDispatcher, readModelStore: this.readModelStore },
+      [this.reactor as unknown as AnyEventReactor]
+    )
+
+    const handler = handlers[this.reactor.type]
+    if (!handler) {
+      this.context.error = {
+        code: 'EVENT_HANDLER_NOT_FOUND',
+        message: `No event handler found for type: ${String(this.reactor.type)}`
+      } as AppError
+      return this
     }
 
-    // projection workflow - same as EventHandler
-    // 1. prefetch readModels based on projectionMap
-    const modelDict: Record<string, ReadModel> = {}
-    const modelFetchList =
-      this.reactor.projectionMap[event.type as keyof typeof this.reactor.projectionMap]
-
-    if (modelFetchList && Array.isArray(modelFetchList)) {
-      for (const fetch of modelFetchList) {
-        if (!fetch || typeof fetch !== 'object' || !fetch.readModel) {
-          continue
-        }
-
-        const modelType: string = fetch.readModel
-
-        if (fetch.where) {
-        } else {
-          // Find by event ID
-          if (event.id?.value && this.readModelStore.records[modelType]?.[event.id.value]) {
-            const model = this.readModelStore.records[modelType][event.id.value]
-            if (model) {
-              const key = modelType + model.id
-              modelDict[key] = model
-            }
-          }
-        }
-      }
+    const handled = await handler(event as unknown as ExtendedDomainEvent<DomainEvent>)
+    if (!handled.ok) {
+      this.context.error = handled.error
     }
 
-    // 2. apply projection to each readModel
-    const projectionFn = mapProjectionToFn(this.reactor.projection)
-    const updatedDict: Record<string, ReadModel> = {}
-
-    for (const [key, model] of Object.entries(modelDict)) {
-      const updatedModel = projectionFn({
-        ctx: { timestamp: event.timestamp },
-        event: event as unknown as E,
-        readModel: model as RM
-      })
-      updatedDict[key] = updatedModel
-    }
-
-    // Handle new readModel creation (when no existing readModel found)
-    if (Object.keys(modelDict).length === 0 && modelFetchList && Array.isArray(modelFetchList)) {
-      for (const fetch of modelFetchList) {
-        if (!fetch || typeof fetch !== 'object' || !fetch.readModel) {
-          continue
-        }
-
-        const modelType: string = fetch.readModel
-
-        // Create a placeholder readModel for new creation
-        const placeholderModel = {
-          type: modelType,
-          id: event.id?.value || 'unknown'
-        } as ReadModel
-
-        try {
-          const newModel = projectionFn({
-            ctx: { timestamp: event.timestamp },
-            event: event as unknown as E,
-            readModel: placeholderModel as RM
-          })
-
-          if (newModel && newModel !== placeholderModel) {
-            const key = modelType + newModel.id
-            updatedDict[key] = newModel
-          }
-        } catch {
-          // Continue if projection fails for non-existing model
-        }
-      }
-    }
-
-    // 3. save updated readModels back to storage
-    this.readModelStore.records = { ...this.context.readModel.before }
-    for (const [, model] of Object.entries(updatedDict)) {
-      const type = model.type
-      if (!this.readModelStore.records[type]) this.readModelStore.records[type] = {}
-      this.readModelStore.records[type][model.id] = model
-    }
-
-    // set after readModel
+    // set after readModel and issued commands
     this.context.issuedCommands = this.commandDispatcher.getCommands() as C[]
-    this.context.readModel.after = this.readModelStore.records
+    this.context.readModel.after = structuredClone(this.readModelStore.records)
 
     return this
   }

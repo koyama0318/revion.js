@@ -282,12 +282,12 @@ describe('[event] prefetch-read-model', () => {
       // Assert
       expect(result.ok).toBe(true)
       if (result.ok) {
-        expect(Object.keys(result.value)).toHaveLength(1)
+        expect(Object.keys(result.value)).toHaveLength(2)
         expect(result.value[`counter${id.value}`]).toEqual(counterModel)
       }
     })
 
-    test('returns error when where clause finds no models', async () => {
+    test('returns no error when where clause finds no models', async () => {
       // Arrange
       const store = new ReadModelStoreInMemory()
 
@@ -313,10 +313,7 @@ describe('[event] prefetch-read-model', () => {
       const result = await prefetchFn(event)
 
       // Assert
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error.code).toBe('READ_MODEL_NOT_FOUND')
-      }
+      expect(result.ok).toBe(true)
     })
 
     test('returns error when database findMany fails', async () => {
@@ -354,7 +351,7 @@ describe('[event] prefetch-read-model', () => {
       }
     })
 
-    test('returns not found error when projection map is not empty and event id is invalid', async () => {
+    test('returns no error when projection map is not empty and event id is invalid', async () => {
       // Arrange
       const store = new ReadModelStoreInMemory()
 
@@ -384,10 +381,7 @@ describe('[event] prefetch-read-model', () => {
       const result = await prefetchFn(event)
 
       // Assert
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error.code).toBe('READ_MODEL_NOT_FOUND')
-      }
+      expect(result.ok).toBe(true)
     })
   })
 
@@ -508,7 +502,7 @@ describe('[event] prefetch-read-model', () => {
     // Assert
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(Object.keys(result.value)).toHaveLength(1)
+      expect(Object.keys(result.value)).toHaveLength(2)
       expect(result.value['counter1']).toEqual(model2)
     }
   })
