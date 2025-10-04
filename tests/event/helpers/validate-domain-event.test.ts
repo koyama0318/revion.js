@@ -3,7 +3,7 @@ import { id, zeroId } from '../../../src/command/helpers/aggregate-id'
 import { validateEvent } from '../../../src/event/helpers/validate-domain-event'
 import type { AggregateId, DomainEvent } from '../../../src/types/core'
 
-describe('[event] validate-domain-event', () => {
+describe('[event] validate domain event', () => {
   describe('validateEvent', () => {
     test('returns success for valid event with payload', () => {
       // Arrange

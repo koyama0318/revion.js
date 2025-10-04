@@ -3,7 +3,7 @@ import { ReadModelStoreInMemory } from '../../../src/adapter/read-model-store-in
 import { createSaveReadModel } from '../../../src/event/fn/save-read-model'
 import type { CounterReadModel } from '../../fixtures/counter-app/shared/readmodel'
 
-describe('[event] save-read-model', () => {
+describe('[event] save read model', () => {
   describe('createSaveReadModel', () => {
     test('returns success when no read models provided', async () => {
       // Arrange

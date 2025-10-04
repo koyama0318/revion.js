@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { validateQuery } from '../../../src/query/helpers/validate-query'
 import type { Query } from '../../../src/types/core/query'
 
-describe('[query] validate query helper', () => {
+describe('[query] validate query', () => {
   describe('validateQuery', () => {
     test('returns success when query has valid type', () => {
       // Arrange

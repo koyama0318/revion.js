@@ -17,7 +17,7 @@ type TestEvent =
   | { type: 'updated'; id: AggregateId<'test'>; payload: { value: number } }
   | { type: 'deactivated'; id: AggregateId<'test'> }
 
-describe('aggregate-builder', () => {
+describe('[command] aggregate builder', () => {
   describe('createAggregate', () => {
     test('creates aggregate builder instance', () => {
       // Arrange & Act

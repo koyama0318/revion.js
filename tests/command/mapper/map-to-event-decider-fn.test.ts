@@ -34,7 +34,7 @@ const testDeciders: EventDecider<TestState, TestCommand, TestEvent> = {
   })
 }
 
-describe('map-to-event-decider-fn', () => {
+describe('[command] map to event decider fn', () => {
   describe('mapToEventDeciderFn', () => {
     test('converts EventDecider object to EventDeciderFn', () => {
       // Arrange & Act

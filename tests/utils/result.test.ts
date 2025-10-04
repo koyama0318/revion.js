@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { err, ok, toAsyncResult, toResult } from '../../src'
 import type { Ok } from '../../src/types/utils'
 
-describe('[utils] result utility functions', () => {
+describe('[utils] result', () => {
   describe('ok', () => {
     test('creates successful result with string value', () => {
       // Arrange

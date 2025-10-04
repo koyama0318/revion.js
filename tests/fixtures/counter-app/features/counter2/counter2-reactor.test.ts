@@ -3,7 +3,7 @@ import { zeroId } from '../../../../../src'
 import { reactorFixture } from '../../../../../src/fake/event-reactor-fixture'
 import { counterReactor } from './counter2-reactor'
 
-describe('[counter2] counter reactor (no Map)', () => {
+describe('[fixtures] counter2 reactor', () => {
   const counterId = zeroId('counter')
 
   test('handles created event and creates counterReadModel', () => {

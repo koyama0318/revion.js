@@ -5,7 +5,7 @@ import { zeroId } from '../../src/command/helpers/aggregate-id'
 import { counter } from '../fixtures'
 import type { CounterCommand } from '../fixtures/counter-app/features/counter/types'
 
-describe('command-handler', () => {
+describe('[command] command handler', () => {
   describe('createCommandHandlerFactory', () => {
     describe('new aggregate creation flow', () => {
       test('creates new aggregate when no events stored', async () => {

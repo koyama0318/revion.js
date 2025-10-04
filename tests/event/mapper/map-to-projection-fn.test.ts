@@ -16,7 +16,7 @@ type TestReadModel = ReadModel & {
   status: 'active' | 'inactive'
 }
 
-describe('[event] map-to-projection-fn', () => {
+describe('[event] map to projection fn', () => {
   describe('mapProjectionToFn', () => {
     test('returns original read model when event type not found in projection', () => {
       // Arrange

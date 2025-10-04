@@ -24,7 +24,7 @@ type TestEvent =
   | { type: 'activated'; id: AggregateId }
   | { type: 'deactivated'; id: AggregateId }
 
-describe('map-to-accepts-fn', () => {
+describe('[command] map to accepts fn', () => {
   describe('mapToAcceptsCommandFn', () => {
     test('accepts all command and state combinations when empty map is provided', () => {
       const emptyMap = {} as EventDeciderMap<TestState, TestCommand>

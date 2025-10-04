@@ -50,7 +50,7 @@ const projection: Projection<CounterEvent, CounterReadModels, typeof projectionM
   }
 }
 
-describe('[counter] counter reactor (no Map)', () => {
+describe('[fixtures] counter reactor', () => {
   const counterId = zeroId('counter')
 
   test('handles created event and creates counterReadModel', () => {
