@@ -23,7 +23,7 @@ type TestReadModel = ReadModel & {
   updatedAt: Date
 }
 
-describe('[event] event-reactor-builder', () => {
+describe('[event] event reactor builder', () => {
   describe('createEventReactor', () => {
     test('creates event reactor builder instance', () => {
       // Arrange & Act

@@ -10,7 +10,7 @@ import type {
 } from '../fixtures/counter-app/features/counter2/types'
 import type { CounterReadModel } from '../fixtures/counter-app/shared/readmodel'
 
-describe('query-bus', () => {
+describe('[query] query bus', () => {
   describe('createQueryBus', () => {
     test('should return a function when created with minimal configuration', () => {
       // Arrange

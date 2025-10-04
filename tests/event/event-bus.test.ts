@@ -8,7 +8,7 @@ import type { EventReactor } from '../../src/types/event'
 import type { CounterEvent } from '../fixtures/counter-app/features/counter'
 import { counterReactor } from '../fixtures/counter-app/features/counter'
 
-describe('[event] event-bus', () => {
+describe('[event] event bus', () => {
   describe('createEventBus', () => {
     test('creates event bus with dependencies and reactors', () => {
       // Arrange

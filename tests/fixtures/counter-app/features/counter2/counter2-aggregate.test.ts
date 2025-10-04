@@ -3,7 +3,7 @@ import { zeroId } from '../../../../../src/command/helpers/aggregate-id'
 import { aggregateFixture } from '../../../../../src/fake/aggregate-fixture'
 import { counter2 } from './counter2-aggregate'
 
-describe('[fixtures] counter2 app', () => {
+describe('[fixtures] counter2 aggregate', () => {
   const counterId = zeroId('counter')
 
   describe('counter2 aggregate: create command', () => {

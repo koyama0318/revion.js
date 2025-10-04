@@ -12,7 +12,7 @@ type TestEvent =
   | { type: 'updated'; id: AggregateId<'test'>; payload: { value: number } }
   | { type: 'deactivated'; id: AggregateId<'test'> }
 
-describe('map-to-reducer-fn', () => {
+describe('[command] map to reducer fn', () => {
   describe('mapToReducerFn', () => {
     test('converts Reducer object to ReducerFn', () => {
       // Arrange

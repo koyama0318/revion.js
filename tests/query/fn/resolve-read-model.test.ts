@@ -5,7 +5,7 @@ import type { ResolverContext, ResolverFn } from '../../../src/types/query/resol
 import type { CounterQuery, CounterQueryResult } from '../../fixtures/counter-app/features/counter'
 import type { CounterReadModel } from '../../fixtures/counter-app/shared/readmodel'
 
-describe('resolve-read-models', () => {
+describe('[query] resolve read model', () => {
   describe('createResolveReadModelFnFactory', () => {
     test('should return a function when resolver is provided', () => {
       // Arrange

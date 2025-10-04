@@ -9,7 +9,7 @@ import type {
   CounterReadModel
 } from '../../fixtures/counter-app/shared/readmodel'
 
-describe('[event] prefetch-read-model', () => {
+describe('[event] prefetch read model', () => {
   describe('createPrefetchReadModel', () => {
     test('returns error when event is invalid', async () => {
       // Arrange

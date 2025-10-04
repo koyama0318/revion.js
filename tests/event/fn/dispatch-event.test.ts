@@ -8,7 +8,7 @@ import type {
   CounterEvent
 } from '../../fixtures/counter-app/features/counter/types'
 
-describe('[event] dispatch-event', () => {
+describe('[event] dispatch event', () => {
   describe('createDispatchEventFnFactory', () => {
     test('returns ok when policy returns no command', async () => {
       // Arrange

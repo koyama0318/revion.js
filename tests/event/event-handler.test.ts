@@ -13,7 +13,7 @@ import type {
   CounterReadModels
 } from '../fixtures/counter-app/features/counter/types'
 
-describe('[event] event-handler', () => {
+describe('[event] event handler', () => {
   describe('createEventHandlers', () => {
     test('processes events successfully when all operations succeed', async () => {
       // Arrange

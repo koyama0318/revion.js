@@ -30,7 +30,7 @@ type CounterMultiQueryResult =
       total: number
     }
 
-describe('query-source-builder', () => {
+describe('[query] query source builder', () => {
   describe('createQuerySource', () => {
     test('should build valid query source with all required methods', async () => {
       // Arrange

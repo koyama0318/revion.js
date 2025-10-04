@@ -5,7 +5,7 @@ import { counterQuerySource } from '../fixtures/counter-app/features/counter'
 import type { CounterQuery } from '../fixtures/counter-app/features/counter2/types'
 import type { CounterReadModel } from '../fixtures/counter-app/shared/readmodel'
 
-describe('query-handler', () => {
+describe('[query] query handler', () => {
   describe('createQueryHandlers', () => {
     test('should handle single item query', async () => {
       // Arrange

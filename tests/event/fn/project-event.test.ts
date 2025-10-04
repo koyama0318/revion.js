@@ -7,7 +7,7 @@ import type { Projection, ProjectionMap } from '../../../src/types/event'
 import type { CounterEvent } from '../../fixtures/counter-app/features/counter/types'
 import type { CounterReadModel } from '../../fixtures/counter-app/shared/readmodel'
 
-describe('[event] project-event', () => {
+describe('[event] project event', () => {
   describe('createProjectEventFnFactory', () => {
     test('returns empty dict when no read models provided', async () => {
       // Arrange
