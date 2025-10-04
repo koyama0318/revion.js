@@ -1,4 +1,4 @@
-import type { Query, QueryResult, QueryResultData } from '../types/core'
+import type { Query, QueryResult, QueryResultData, ReadModel } from '../types/core'
 import type { QueryHandler, QueryHandlerDeps } from '../types/framework'
 import type { AnyQuerySource, QuerySource } from '../types/query/query-source'
 import { ok } from '../utils/result'
@@ -9,10 +9,11 @@ type QueryHandlerFactory<D extends QueryHandlerDeps = QueryHandlerDeps> = (deps:
 function createQueryHandlerFactory<
   Q extends Query,
   QR extends QueryResultData,
+  RM extends ReadModel,
   D extends QueryHandlerDeps
->(source: QuerySource<Q, QR>): QueryHandlerFactory<D> {
+>(source: QuerySource<Q, QR, RM>): QueryHandlerFactory<D> {
   return (deps: D) => {
-    const resolveFn = createResolveReadModelFnFactory<Q, QR>(source.queryResolver)(
+    const resolveFn = createResolveReadModelFnFactory<Q, QR, RM>(source.queryResolver)(
       deps.readModelStore
     )
 

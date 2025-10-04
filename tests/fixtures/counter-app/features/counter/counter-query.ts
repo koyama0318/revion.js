@@ -1,8 +1,9 @@
 import { createQuerySource } from '../../../../../src/query/query-source-builder'
 import type { QueryResolver } from '../../../../../src/types/query/query-resolver'
+import type { CounterReadModel } from '../../shared/readmodel'
 import type { CounterQuery, CounterQueryResult } from './types'
 
-const resolver: QueryResolver<CounterQuery, CounterQueryResult> = {
+const resolver: QueryResolver<CounterQuery, CounterQueryResult, CounterReadModel> = {
   listCounters: async ({ query, store }) => {
     const options = {
       range: query.payload.range
@@ -26,7 +27,11 @@ const resolver: QueryResolver<CounterQuery, CounterQueryResult> = {
   }
 }
 
-export const counterQuerySource = createQuerySource<CounterQuery, CounterQueryResult>()
+export const counterQuerySource = createQuerySource<
+  CounterQuery,
+  CounterQueryResult,
+  CounterReadModel
+>()
   .type('counter')
   .resolver(resolver)
   .build()
